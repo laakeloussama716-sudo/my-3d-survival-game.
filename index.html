@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Survival Game - Optimized</title>
+    <title>3D Survival Game - Fixed Mining & HP</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; user-select: none; }
         
@@ -122,7 +122,7 @@
 
     <div id="instructions">
         <h1>CLICK TO PLAY</h1>
-        <p>WASD = Move | SPACE = Jump | Left Click = Destroy Object | F3 = Camera | I = Inventory | P = Settings</p>
+        <p>WASD = Move | SPACE = Jump | Left Click = Mine | F3 = Camera | I = Inventory | P = Settings</p>
     </div>
 
     <script>
@@ -147,6 +147,7 @@
 
         const loader = new THREE.GLTFLoader();
         const mapObjects = [];
+        const breakableObjects = []; // ??????? ?????? ???????? ??????? ??????? ??????? ???
 
         // --- LOAD MAP ---
         loader.load('tabletop_terrain.glb', (gltf) => {
@@ -158,6 +159,19 @@
                     child.receiveShadow = true;
                     child.castShadow = true;
                     mapObjects.push(child);
+
+                    // ??????? ??????? ???????? ??? ???????? ??????? ???????
+                    const name = child.name.toLowerCase();
+                    if (!name.includes('terrain') && !name.includes('ground') && !name.includes('plane')) {
+                        // ????? ??? ????? ??? ??? ??????
+                        if (name.includes('rock') || name.includes('stone')) {
+                            child.userData = { type: 'stone', hp: 5, maxHp: 5 };
+                        } else {
+                            // ????????? ????? ?? ???
+                            child.userData = { type: 'wood', hp: 3, maxHp: 3 };
+                        }
+                        breakableObjects.push(child);
+                    }
                 }
             });
 
@@ -166,7 +180,6 @@
 
         // --- PLAYER SETUP ---
         const playerGroup = new THREE.Group();
-        // ???????? ????? ?? ?????? ?????? ???????? ??? ??????
         playerGroup.position.set(15, 60, 15);
         scene.add(playerGroup);
 
@@ -227,26 +240,40 @@
         const downRaycaster = new THREE.Raycaster();
         const downVector = new THREE.Vector3(0, -1, 0);
 
-        // --- MINING SYSTEM ---
+        // --- INDIVIDUAL MINING & HP SYSTEM ---
         const mineRaycaster = new THREE.Raycaster();
 
         document.addEventListener('mousedown', (e) => {
             if (!isLocked || isInventoryOpen || isSettingsOpen || e.button !== 0) return;
 
             mineRaycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-            const intersects = mineRaycaster.intersectObjects(mapObjects, true);
+            const intersects = mineRaycaster.intersectObjects(breakableObjects, false);
 
-            if (intersects.length > 0 && intersects[0].distance <= 6.0) {
+            if (intersects.length > 0 && intersects[0].distance <= 7.0) {
                 const hitObj = intersects[0].object;
-                hitObj.scale.set(0, 0, 0);
-                
-                const index = mapObjects.indexOf(hitObj);
-                if (index > -1) {
-                    mapObjects.splice(index, 1);
+
+                if (hitObj.userData && hitObj.userData.hp !== undefined) {
+                    hitObj.userData.hp -= 1; // ????? ???? ?????
+
+                    // ?????? ???? ??????? ??????? ?? ?????
+                    hitObj.scale.multiplyScalar(0.92);
+
+                    // ?????? ?????? ??? ?????? ???
+                    if (hitObj.userData.hp <= 0) {
+                        hitObj.scale.set(0, 0, 0);
+                        
+                        // ????? ?? ?????????
+                        const breakIdx = breakableObjects.indexOf(hitObj);
+                        if (breakIdx > -1) breakableObjects.splice(breakIdx, 1);
+
+                        const mapIdx = mapObjects.indexOf(hitObj);
+                        if (mapIdx > -1) mapObjects.splice(mapIdx, 1);
+
+                        setTimeout(() => {
+                            if (hitObj.parent) hitObj.parent.remove(hitObj);
+                        }, 50);
+                    }
                 }
-                setTimeout(() => {
-                    if(hitObj.parent) hitObj.parent.remove(hitObj);
-                }, 50);
             }
         });
 
@@ -303,7 +330,6 @@
             const val = e.target.value;
             gfxValue.innerText = val + '%';
             
-            // ??? ?? ??? ????????? ???? ????????
             const scale = Math.max(0.2, val / 100);
             renderer.setPixelRatio(window.devicePixelRatio * scale);
             
@@ -404,7 +430,6 @@
         function animate() {
             requestAnimationFrame(animate);
 
-            // FPS Calculation
             frameCount++;
             const currentTime = performance.now();
             if (currentTime - lastTime >= 1000) {
