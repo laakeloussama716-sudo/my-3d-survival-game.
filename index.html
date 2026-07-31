@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Survival Game - Fixed Core</title>
+    <title>3D Survival Game - Collision & Controls Fix</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; user-select: none; }
         
@@ -73,7 +73,7 @@
     
     <div id="ui">
         <h2>3D Survival Engine</h2>
-        <p>WASD: Move | Mouse: Look | F3: Perspective | I: Inventory</p>
+        <p>WASD / Arabic WASD: Move | F3: Camera | I / ??: Inventory</p>
     </div>
 
     <div id="hotbar">
@@ -92,8 +92,8 @@
     </div>
 
     <div id="instructions">
-        <h1>CLICK TO PLAY</h1>
-        <p>F3 = Change Camera View | I = Toggle Inventory</p>
+        <h1>???? ??? ????? | CLICK TO PLAY</h1>
+        <p>?????? ???? ???????? ?????? ?????????? ????????</p>
     </div>
 
     <script>
@@ -134,13 +134,15 @@
         floor.receiveShadow = true;
         scene.add(floor);
 
-        // --- OBJECTS (Reduced Trees, Big Rock Meshes) ---
+        // --- COLLISION SYSTEM SETUP ---
+        const colliders = []; // Store obstacle positions & radius
+
         function createTree(x, z) {
             const tree = new THREE.Group();
             const y = getTerrainHeight(x, z);
 
             const trunk = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.2, 0.4, 3, 6),
+                new THREE.CylinderGeometry(0.3, 0.5, 3, 6),
                 new THREE.MeshLambertMaterial({ color: 0x5c4033 })
             );
             trunk.position.y = 1.5;
@@ -148,7 +150,7 @@
             tree.add(trunk);
 
             const leaves = new THREE.Mesh(
-                new THREE.ConeGeometry(1.5, 3.5, 6),
+                new THREE.ConeGeometry(1.6, 3.5, 6),
                 new THREE.MeshLambertMaterial({ color: 0x1e5631 })
             );
             leaves.position.y = 4;
@@ -157,32 +159,37 @@
 
             tree.position.set(x, y, z);
             scene.add(tree);
+
+            // Register Obstacle Collision (Radius = 0.8)
+            colliders.push({ x: x, z: z, radius: 0.8 });
         }
 
         function createRock(x, z) {
             const y = getTerrainHeight(x, z);
-            const rockGeo = new THREE.DodecahedronGeometry(1.2 + Math.random() * 0.8, 1);
+            const rSize = 1.2 + Math.random() * 0.8;
+            const rockGeo = new THREE.DodecahedronGeometry(rSize, 1);
             const rockMat = new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.8 });
             const rock = new THREE.Mesh(rockGeo, rockMat);
             
-            rock.position.set(x, y + 0.5, z);
+            rock.position.set(x, y + 0.4, z);
             rock.rotation.set(Math.random(), Math.random(), Math.random());
-            rock.scale.set(1, 0.7 + Math.random() * 0.4, 1);
             rock.castShadow = true;
             rock.receiveShadow = true;
             scene.add(rock);
+
+            // Register Obstacle Collision
+            colliders.push({ x: x, z: z, radius: rSize * 0.9 });
         }
 
-        // Spawn only 50 Trees & 40 Big Rocks for balanced testing
-        for(let i=0; i<50; i++) {
+        for(let i=0; i<45; i++) {
             let x = (Math.random() - 0.5) * 160;
             let z = (Math.random() - 0.5) * 160;
-            if(Math.hypot(x, z) > 8) createTree(x, z);
+            if(Math.hypot(x, z) > 10) createTree(x, z);
         }
-        for(let i=0; i<40; i++) {
+        for(let i=0; i<35; i++) {
             let x = (Math.random() - 0.5) * 160;
             let z = (Math.random() - 0.5) * 160;
-            if(Math.hypot(x, z) > 8) createRock(x, z);
+            if(Math.hypot(x, z) > 10) createRock(x, z);
         }
 
         // --- PLAYER SETUP ---
@@ -190,34 +197,35 @@
         scene.add(playerGroup);
 
         let playerMesh = null;
-        let mixer = null; // Animation mixer
+        let mixer = null;
         let animationsMap = new Map();
-        let currentAction = null;
+        const playerRadius = 0.5; // Radius for player collision
 
         const loader = new THREE.GLTFLoader();
         loader.load('player.glb', (gltf) => {
             playerMesh = gltf.scene;
             playerMesh.scale.set(1, 1, 1);
-            playerMesh.rotation.y = Math.PI; // Face forward
+            playerMesh.rotation.y = Math.PI;
             playerMesh.castShadow = true;
+            
+            // Adjust Offset Y so feet stand precisely on the terrain
+            playerMesh.position.y = 0.0;
             playerGroup.add(playerMesh);
 
-            // Setup Animations if model has rig
             if(gltf.animations && gltf.animations.length > 0) {
                 mixer = new THREE.AnimationMixer(playerMesh);
                 gltf.animations.forEach(clip => {
                     animationsMap.set(clip.name.toLowerCase(), mixer.clipAction(clip));
                 });
-                // Play first available animation as idle/walk test
                 const firstAnim = animationsMap.values().next().value;
                 if(firstAnim) firstAnim.play();
             }
 
             updatePerspective();
         }, undefined, () => {
-            // Fallback capsule
+            // Fallback capsule elevated properly
             playerMesh = new THREE.Mesh(
-                new THREE.CapsuleGeometry(0.4, 1, 4, 8),
+                new THREE.CapsuleGeometry(playerRadius, 1, 4, 8),
                 new THREE.MeshStandardMaterial({ color: 0x2266cc })
             );
             playerMesh.position.y = 0.9;
@@ -225,20 +233,18 @@
             updatePerspective();
         });
 
-        // --- CAMERA PERSPECTIVE FIXED ---
-        let isThirdPerson = false; // Starts First Person
+        // --- CAMERA PERSPECTIVE ---
+        let isThirdPerson = false;
         const cameraRig = new THREE.Group();
         playerGroup.add(cameraRig);
         cameraRig.add(camera);
 
         function updatePerspective() {
             if (!isThirdPerson) {
-                // First Person: Camera inside head
-                camera.position.set(0, 1.6, 0.1);
+                camera.position.set(0, 1.7, 0.1);
                 camera.rotation.set(0, 0, 0);
                 if (playerMesh) playerMesh.visible = false;
             } else {
-                // Third Person: Camera behind player
                 camera.position.set(0, 2.2, 3.8);
                 camera.rotation.set(-0.2, 0, 0);
                 if (playerMesh) playerMesh.visible = true;
@@ -246,7 +252,7 @@
         }
         updatePerspective();
 
-        // --- INVENTORY & POINTER LOCK FIX ---
+        // --- INVENTORY & POINTER LOCK ---
         let isLocked = false;
         let isInventoryOpen = false;
         const instructions = document.getElementById('instructions');
@@ -258,7 +264,6 @@
 
         document.addEventListener('pointerlockchange', () => {
             isLocked = (document.pointerLockElement === document.body);
-            // ONLY show instructions if NOT locked AND inventory is CLOSED
             if (!isLocked && !isInventoryOpen) {
                 instructions.style.display = 'flex';
             } else {
@@ -275,10 +280,10 @@
             pitch = Math.max(-1.2, Math.min(1.2, pitch));
 
             playerGroup.rotation.y = yaw;
-            cameraRig.rotation.x = pitch; // Pitch rotates camera rig smoothly
+            cameraRig.rotation.x = pitch;
         });
 
-        // Inventory Generation (15 Slots)
+        // Build Inventory UI Slots
         const slotsContainer = document.getElementById('slots-container');
         for(let i=0; i<15; i++) {
             const slot = document.createElement('div');
@@ -286,19 +291,20 @@
             slotsContainer.appendChild(slot);
         }
 
-        // Keys Logic
+        // --- KEYBOARD CONTROLS (ARABIC / ENGLISH HARDWARE CODE SUPPORT) ---
         const keys = {};
+        
         document.addEventListener('keydown', (e) => {
-            const key = e.key.toLowerCase();
-            keys[key] = true;
+            // e.code listens to physical key position (Independent of Arabic/English layout)
+            keys[e.code] = true;
 
-            if (e.key === 'F3') {
+            if (e.code === 'F3') {
                 e.preventDefault();
                 isThirdPerson = !isThirdPerson;
                 updatePerspective();
             }
 
-            if (key === 'i') {
+            if (e.code === 'KeyI') { // Works for 'I' and Arabic '??'
                 isInventoryOpen = !isInventoryOpen;
                 if (isInventoryOpen) {
                     inventoryOverlay.style.display = 'flex';
@@ -310,7 +316,7 @@
                 }
             }
 
-            if (e.key === 'Escape' && isInventoryOpen) {
+            if (e.code === 'Escape' && isInventoryOpen) {
                 isInventoryOpen = false;
                 inventoryOverlay.style.display = 'none';
                 document.body.requestPointerLock();
@@ -318,10 +324,22 @@
         });
 
         document.addEventListener('keyup', (e) => {
-            keys[e.key.toLowerCase()] = false;
+            keys[e.code] = false;
         });
 
-        // --- ANIMATION & MOVEMENT LOOP ---
+        // --- COLLISION CHECKER ---
+        function checkCollisions(targetPos) {
+            for (let obs of colliders) {
+                const dist = Math.hypot(targetPos.x - obs.x, targetPos.z - obs.z);
+                const minDist = playerRadius + obs.radius;
+                if (dist < minDist) {
+                    return true; // Collision detected
+                }
+            }
+            return false;
+        }
+
+        // --- GAME LOOP ---
         let clock = new THREE.Clock();
 
         function animate() {
@@ -334,18 +352,26 @@
                 const moveSpeed = 8 * delta;
                 const moveVector = new THREE.Vector3();
 
-                if (keys['w']) moveVector.z -= 1;
-                if (keys['s']) moveVector.z += 1;
-                if (keys['a']) moveVector.x -= 1;
-                if (keys['d']) moveVector.x += 1;
+                // Key W/S/A/D read physical layout (KeyW, KeyS, KeyA, KeyD)
+                if (keys['KeyW']) moveVector.z -= 1;
+                if (keys['KeyS']) moveVector.z += 1;
+                if (keys['KeyA']) moveVector.x -= 1;
+                if (keys['KeyD']) moveVector.x += 1;
 
                 if (moveVector.lengthSq() > 0) {
                     moveVector.normalize();
                     moveVector.applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
-                    playerGroup.position.addScaledVector(moveVector, moveSpeed);
+                    
+                    // Predict Next Position
+                    const nextPos = playerGroup.position.clone().addScaledVector(moveVector, moveSpeed);
+
+                    // Check Collision with Trees & Rocks
+                    if (!checkCollisions(nextPos)) {
+                        playerGroup.position.copy(nextPos);
+                    }
                 }
 
-                // Snap to terrain height
+                // Snap to terrain height with zero feet clipping
                 const h = getTerrainHeight(playerGroup.position.x, playerGroup.position.z);
                 playerGroup.position.y = h;
             }
