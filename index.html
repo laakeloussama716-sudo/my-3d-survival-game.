@@ -2,30 +2,38 @@
 <html lang="ar">
 <head>
     <meta charset="UTF-8">
-    <title>3D Survival Engine - Full Map with Collision</title>
+    <title>My 3D Game</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: sans-serif; }
         #instructions {
             position: absolute; top: 0; width: 100%; height: 100%;
             display: flex; flex-direction: column; justify-content: center;
             align-items: center; background: rgba(0,0,0,0.7); color: white;
-            cursor: pointer; z-index: 10;
+            cursor: pointer; z-index: 10; user-select: none;
+        }
+        #crosshair {
+            position: absolute; top: 50%; left: 50%;
+            width: 10px; height: 10px; margin-top: -5px; margin-left: -5px;
+            background-color: white; border-radius: 50%;
+            pointer-events: none; z-index: 5; border: 1px solid black;
         }
     </style>
+    <!-- ????? Three.js ?????? GLTFLoader ?????? ????? GLB -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 </head>
 <body>
 
+<div id="crosshair"></div>
 <div id="instructions">
     <h1>CLICK TO PLAY</h1>
-    <p>WASD = Move | SPACE = Jump | Left Click = Destroy Object | F3 = Camera | I = Inventory</p>
+    <p>WASD = Move | SPACE = Jump | Left Click = Destroy Object (Tree / Rock)</p>
 </div>
 
 <script>
     // 1. ?????? ?????????
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87ceeb);
-    scene.fog = new THREE.FogExp2(0x87ceeb, 0.012);
 
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -33,98 +41,61 @@
     renderer.shadowMap.enabled = true;
     document.body.appendChild(renderer.domElement);
 
-    // 2. ???????
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     scene.add(ambientLight);
 
-    const sun = new THREE.DirectionalLight(0xffffff, 0.8);
-    sun.position.set(100, 150, 50);
+    const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+    sun.position.set(50, 100, 50);
     sun.castShadow = true;
     scene.add(sun);
 
-    // 3. ??????? ???????? (?????? ????????? ??????)
-    const terrainGeo = new THREE.PlaneGeometry(300, 300, 64, 64);
-    terrainGeo.rotateX(-Math.PI / 2);
+    // 2. ???? ????? ??? GLB
+    const loader = new THREE.GLTFLoader();
     
-    // ????? ?????? ????? ?????
-    const pos = terrainGeo.attributes.position;
-    for (let i = 0; i < pos.count; i++) {
-        let x = pos.getX(i);
-        let z = pos.getZ(i);
-        // ???????? ???? ???? ???? ????? ?????? ????
-        let y = Math.sin(x * 0.05) * Math.cos(z * 0.05) * 3;
-        pos.setY(i, y);
-    }
-    terrainGeo.computeVertexNormals();
+    let playerModel = null;
+    let terrainModel = null;
+    const destructibleObjects = []; // ???????? ??????? ??????? ????????
 
-    const terrainMat = new THREE.MeshLambertMaterial({ color: 0x2e5a1c });
-    const terrain = new THREE.Mesh(terrainGeo, terrainMat);
-    terrain.receiveShadow = true;
-    scene.add(terrain);
+    // ????? ??????? tabletop_terrain.glb
+    loader.load('tabletop_terrain.glb', (gltf) => {
+        terrainModel = gltf.scene;
+        scene.add(terrainModel);
 
-    // ????? ????
-    const waterGeo = new THREE.PlaneGeometry(300, 300);
-    const waterMat = new THREE.MeshBasicMaterial({ color: 0x1d6a96, transparent: true, opacity: 0.7 });
-    const water = new THREE.Mesh(waterGeo, waterMat);
-    water.rotation.x = -Math.PI / 2;
-    water.position.y = -1.5;
-    scene.add(water);
+        // ????? ?? ?????? ????? ?????? ???? ??????? ?????? ??????? ???????? ?????
+        terrainModel.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
 
-    // 4. ?????? ????????? ??????? ?????? ??? ??????
+                // ?????? ??? ?????? ????? ?? ????? ????? ??? ????? ?? ???????
+                const name = child.name.toLowerCase();
+                if (name.includes('tree') || name.includes('rock') || name.includes('stone') || name.includes('wood')) {
+                    destructibleObjects.push(child);
+                }
+            }
+        });
+        console.log("Terrain Loaded Successfully!");
+    }, undefined, (error) => {
+        console.error("Error loading terrain:", error);
+    });
+
+    // ????? ??????? player.glb
+    loader.load('player.glb', (gltf) => {
+        playerModel = gltf.scene;
+        playerModel.scale.set(1, 1, 1); // ????? ????? ??? ??? ?????
+        scene.add(playerModel);
+        console.log("Player Loaded Successfully!");
+    }, undefined, (error) => {
+        console.error("Error loading player:", error);
+    });
+
+    // 3. ??????? ?????? ???????
     const player = {
-        height: 1.8,
-        speed: 0.18,
-        radius: 0.7,
-        position: new THREE.Vector3(0, 5, 20) // ????? ????? ????
+        position: new THREE.Vector3(0, 2, 5),
+        speed: 0.15,
+        radius: 0.6
     };
 
-    // 5. ????? ??????? ???????? ?? ???????
-    const treeColliders = [];
-
-    function spawnTree(x, z) {
-        // ???? ?????? ????? ??? ??? ?????? ???? ?????? ?? ?????
-        let terrainY = Math.sin(x * 0.05) * Math.cos(z * 0.05) * 3;
-        if (terrainY < -0.5) return; // ??? ??? ??????? ???? ?????
-
-        const treeGroup = new THREE.Group();
-
-        // ??? ??????
-        const trunkGeo = new THREE.CylinderGeometry(0.5, 0.7, 5, 8);
-        const trunkMat = new THREE.MeshLambertMaterial({ color: 0x3d2314 });
-        const trunk = new THREE.Mesh(trunkGeo, trunkMat);
-        trunk.position.y = 2.5;
-        trunk.castShadow = true;
-        treeGroup.add(trunk);
-
-        // ????? ??????
-        const leavesGeo = new THREE.ConeGeometry(2.5, 6, 8);
-        const leavesMat = new THREE.MeshLambertMaterial({ color: 0x163e18 });
-        const leaves = new THREE.Mesh(leavesGeo, leavesMat);
-        leaves.position.y = 6;
-        leaves.castShadow = true;
-        treeGroup.add(leaves);
-
-        treeGroup.position.set(x, terrainY, z);
-        scene.add(treeGroup);
-
-        // ????? ?????? ??????? ???????
-        treeColliders.push({
-            x: x,
-            z: z,
-            radius: 0.8
-        });
-    }
-
-    // ??? ???? ?? ??????? ?? ???????
-    for (let i = -100; i < 100; i += 15) {
-        for (let j = -100; j < 100; j += 15) {
-            if (Math.abs(i) > 10 || Math.abs(j - 20) > 10) { // ??? ????? ??????? ?????
-                spawnTree(i + (Math.random() * 6 - 3), j + (Math.random() * 6 - 3));
-            }
-        }
-    }
-
-    // 6. ?????? ??????? ?????????
     const keys = {};
     document.addEventListener('keydown', (e) => keys[e.code] = true);
     document.addEventListener('keyup', (e) => keys[e.code] = false);
@@ -145,14 +116,46 @@
         }
     });
 
-    // 7. ???????? ??? ?????? ??????? ??????
+    // 4. ???? ????? ??????? ??????? ?????? (Left Click)
+    const raycaster = new THREE.Raycaster();
+    document.addEventListener('mousedown', (e) => {
+        if (document.pointerLockElement === document.body && e.button === 0) {
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+
+            // ??? ??????? ??????? ???????
+            const intersects = raycaster.intersectObjects(terrainModel ? terrainModel.children : [], true);
+
+            if (intersects.length > 0 && intersects[0].distance < 10) {
+                const hitMesh = intersects[0].object;
+                
+                // ????? ?????? ?????? ?? ???? ?? ??????
+                hitMesh.visible = false;
+                
+                // ?????? ?? ????? ???????
+                const index = destructibleObjects.indexOf(hitMesh);
+                if (index !== -1) {
+                    destructibleObjects.splice(index, 1);
+                }
+            }
+        }
+    });
+
+    // 5. ??????? ?? ???????? ????????
     function handleCollisions(targetPos) {
-        // ????? ???????
-        for (let tree of treeColliders) {
-            let dx = targetPos.x - tree.x;
-            let dz = targetPos.z - tree.z;
+        // ??? ?????? ??? ????? ??????? ?????????
+        if (targetPos.y < 1) targetPos.y = 1;
+
+        // ??????? ?? ???????
+        for (let obj of destructibleObjects) {
+            if (!obj.visible) continue;
+
+            const objPos = new THREE.Vector3();
+            obj.getWorldPosition(objPos);
+
+            let dx = targetPos.x - objPos.x;
+            let dz = targetPos.z - objPos.z;
             let dist = Math.sqrt(dx * dx + dz * dz);
-            let minDist = player.radius + tree.radius;
+            let minDist = player.radius + 1.0;
 
             if (dist < minDist) {
                 let overlap = minDist - dist;
@@ -161,13 +164,9 @@
                 targetPos.z += Math.sin(angle) * overlap;
             }
         }
-
-        // ??? ?????? ?????? ???????? ??? ?????? ????? (???? ?????? ??? ?????)
-        let currentTerrainY = Math.sin(targetPos.x * 0.05) * Math.cos(targetPos.z * 0.05) * 3;
-        targetPos.y = Math.max(currentTerrainY + player.height, -1 + player.height); // ???? ????? ????? ??? ?????
     }
 
-    // 8. ???? ???????
+    // 6. ???? ??????? ???????? ???????
     function animate() {
         requestAnimationFrame(animate);
 
@@ -181,10 +180,15 @@
             let nextPos = player.position.clone().addScaledVector(moveVector, player.speed);
 
             handleCollisions(nextPos);
-
             player.position.copy(nextPos);
 
-            camera.position.copy(player.position);
+            // ?????? ???? ???? ?????? ?????????
+            if (playerModel) {
+                playerModel.position.copy(player.position);
+                playerModel.rotation.y = yaw;
+            }
+
+            camera.position.set(player.position.x, player.position.y + 1.6, player.position.z);
             camera.rotation.order = "YXZ";
             camera.rotation.y = yaw;
             camera.rotation.x = pitch;
