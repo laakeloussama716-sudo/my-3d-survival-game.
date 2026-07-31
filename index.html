@@ -119,8 +119,8 @@
     </div>
 
     <div id="instructions">
-        <h1>CLICK TO PLAY</h1>
-        <p>WASD = Move | SPACE = Jump | Left Click = Mine | F3 = Camera | I = Inventory | P = Settings</p>
+        <h1 id="loading-title">LOADING MAP...</h1>
+        <p id="loading-sub">Please wait until terrain assets load completely</p>
     </div>
 
     <script>
@@ -146,6 +146,7 @@
         const loader = new THREE.GLTFLoader();
         let mapSceneRoot = null;
         const allMapMeshes = [];
+        let isMapLoaded = false;
 
         // --- LOAD MAP ---
         loader.load('tabletop_terrain.glb', (gltf) => {
@@ -161,11 +162,16 @@
             });
 
             scene.add(mapSceneRoot);
+            
+            // ?? ????? ??????? ?????
+            isMapLoaded = true;
+            document.getElementById('loading-title').innerText = "CLICK TO PLAY";
+            document.getElementById('loading-sub').innerText = "WASD = Move | SPACE = Jump | Left Click = Mine | F3 = Camera | I = Inventory | P = Settings";
         });
 
         // --- PLAYER SETUP ---
         const playerGroup = new THREE.Group();
-        playerGroup.position.set(15, 60, 15);
+        playerGroup.position.set(0, 30, 0); // ????? ?????
         scene.add(playerGroup);
 
         let playerMesh = null;
@@ -228,19 +234,18 @@
 
         // --- MINING SYSTEM ---
         document.addEventListener('mousedown', (e) => {
-            if (!isLocked || isInventoryOpen || isSettingsOpen || e.button !== 0) return;
+            if (!isLocked || isInventoryOpen || isSettingsOpen || e.button !== 0 || !isMapLoaded) return;
 
             mineRaycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
             const intersects = mineRaycaster.intersectObjects(allMapMeshes, true);
 
-            if (intersects.length > 0 && intersects[0].distance <= 8.0) {
+            if (intersects.length > 0 && intersects[0].distance <= 10.0) {
                 const hitObj = intersects[0].object;
                 const name = (hitObj.name || '').toLowerCase();
 
-                // ???????? ?? ???????? ??? ???????
+                // ???????? ?? ??????? ??????? ??? ???????
                 if (!name.includes('terrain') && !name.includes('ground') && !name.includes('plane') && !name.includes('landscape')) {
                     
-                    // ????? ??? ??? ?? ??? ??????
                     if (!hitObj.userData.hp) {
                         hitObj.userData.hp = 3;
                         hitObj.userData.isBreakable = true;
@@ -251,7 +256,7 @@
 
                     hitObj.userData.hp -= 1;
 
-                    // ????? ?????? ?????? ??????? ??? ?????
+                    // ???? ????
                     if (hitObj.material && hitObj.material.color) {
                         hitObj.material.color.setHex(0xff2222);
                         setTimeout(() => {
@@ -261,11 +266,9 @@
                         }, 100);
                     }
 
-                    // ????? ?????? ??????? ??? ?????? ?????
+                    // ?????/?????
                     if (hitObj.userData.hp <= 0) {
                         hitObj.visible = false;
-                        
-                        // ?? ??? ????? ?? ????/???? ???? ????? ????????
                         if (hitObj.parent && hitObj.parent !== mapSceneRoot && hitObj.parent !== scene) {
                             hitObj.parent.visible = false;
                         }
@@ -284,7 +287,7 @@
         const settingsOverlay = document.getElementById('settings-overlay');
 
         instructions.addEventListener('click', () => {
-            if(!isInventoryOpen && !isSettingsOpen) document.body.requestPointerLock();
+            if(!isInventoryOpen && !isSettingsOpen && isMapLoaded) document.body.requestPointerLock();
         });
 
         document.addEventListener('pointerlockchange', () => {
@@ -438,7 +441,7 @@
             const delta = clock.getDelta();
             if (mixer) mixer.update(delta);
 
-            if (isLocked && !isInventoryOpen && !isSettingsOpen) {
+            if (isLocked && !isInventoryOpen && !isSettingsOpen && isMapLoaded) {
                 const moveSpeed = 9 * delta;
                 const moveVector = new THREE.Vector3();
 
@@ -461,35 +464,41 @@
                     }
                 }
 
-                // --- ACCURATE GROUND COLLISION LOGIC ---
-                // ????? ???? ?? ????? ??? ?????? ??? ???? ?? ????? ?? ??????? ?? ??????? ????????
-                downRaycaster.set(new THREE.Vector3(playerGroup.position.x, playerGroup.position.y + 0.5, playerGroup.position.z), downVector);
+                // --- GROUND COLLISION ---
+                // ??? ?? ????? ????? ??? ?????? ???? ????
+                downRaycaster.set(new THREE.Vector3(playerGroup.position.x, playerGroup.position.y + 1.2, playerGroup.position.z), downVector);
                 
                 const groundHits = downRaycaster.intersectObjects(allMapMeshes, true);
 
-                let currentGroundY = -100;
+                let currentGroundY = null;
                 for (let i = 0; i < groundHits.length; i++) {
                     const hit = groundHits[i];
                     
-                    // ????? ??????? ??????? ?? ??????? ????????
+                    // ????? ??????? ???????? ?? ???????
                     if (!hit.object.visible || hit.object.userData.isBreakable) continue;
 
-                    // ?????? ?? ?? ????? ??? ??? ?????? ?????? ???? ???? ???
-                    if (hit.point.y <= playerGroup.position.y + 0.6) {
+                    // ???????? ??? ????? ?????? ?? ??? ??????
+                    if (hit.point.y <= playerGroup.position.y + 1.3) {
                         currentGroundY = hit.point.y;
                         break;
                     }
                 }
 
-                velocityY += GRAVITY * delta;
-                playerGroup.position.y += velocityY * delta;
+                if (currentGroundY !== null) {
+                    velocityY += GRAVITY * delta;
+                    playerGroup.position.y += velocityY * delta;
 
-                if (playerGroup.position.y <= currentGroundY + 0.05) {
-                    playerGroup.position.y = currentGroundY + 0.05;
-                    velocityY = 0;
-                    isGrounded = true;
+                    if (playerGroup.position.y <= currentGroundY + 0.05) {
+                        playerGroup.position.y = currentGroundY + 0.05;
+                        velocityY = 0;
+                        isGrounded = true;
+                    } else {
+                        isGrounded = false;
+                    }
                 } else {
-                    isGrounded = false;
+                    // ????? ???? ?????? ???? ????? ?? ??? ?? ??? ?? ????
+                    isGrounded = true;
+                    velocityY = 0;
                 }
             }
 
