@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Survival Game - Fix Spawn & Physics</title>
+    <title>3D Survival Game - Optimized</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; user-select: none; }
         
@@ -18,6 +18,13 @@
         #ui h2 { margin: 0 0 5px 0; font-size: 22px; }
         #ui p { margin: 0; font-size: 13px; opacity: 0.9; }
 
+        #fps-counter {
+            position: absolute; top: 10px; right: 10px; color: #00ffcc;
+            font-family: monospace; font-size: 16px; font-weight: bold;
+            background: rgba(0,0,0,0.5); padding: 4px 8px; border-radius: 4px;
+            display: none; z-index: 10; border: 1px solid rgba(0,255,204,0.3);
+        }
+
         #hotbar {
             position: absolute; bottom: 20px; left: 50%;
             transform: translateX(-50%); display: flex; gap: 10px;
@@ -30,31 +37,29 @@
             border: 2px solid #555; border-radius: 8px;
         }
 
-        #inventory-overlay {
+        #inventory-overlay, #settings-overlay {
             position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
             background: rgba(0,0,0,0.7); display: none;
             justify-content: center; align-items: center; z-index: 30;
         }
-        #inventory-box {
-            width: 650px; height: 400px;
+        
+        .modal-box {
             background: rgba(20, 20, 20, 0.95);
             border: 2px solid #555; border-radius: 12px;
-            display: flex; padding: 20px; gap: 20px; box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            box-shadow: 0 0 20px rgba(0,0,0,0.8); color: white;
         }
-        #slots-container {
-            display: grid; grid-template-columns: repeat(5, 1fr);
-            grid-template-rows: repeat(3, 1fr); gap: 10px; flex: 2;
-        }
-        .inv-slot {
-            background: rgba(255,255,255,0.05);
-            border: 2px solid #444; border-radius: 8px;
-        }
-        #crafting-space {
-            flex: 1; background: rgba(255,255,255,0.02);
-            border: 2px dashed #444; border-radius: 10px;
-            display: flex; justify-content: center; align-items: center;
-            color: #888; font-size: 16px;
-        }
+
+        #inventory-box { width: 650px; height: 400px; display: flex; padding: 20px; gap: 20px; }
+        #slots-container { display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(3, 1fr); gap: 10px; flex: 2; }
+        .inv-slot { background: rgba(255,255,255,0.05); border: 2px solid #444; border-radius: 8px; }
+        #crafting-space { flex: 1; background: rgba(255,255,255,0.02); border: 2px dashed #444; border-radius: 10px; display: flex; justify-content: center; align-items: center; color: #888; font-size: 16px; }
+
+        #settings-box { width: 380px; padding: 25px; display: flex; flex-direction: column; gap: 20px; }
+        #settings-box h2 { margin: 0 0 10px 0; text-align: center; border-bottom: 1px solid #444; padding-bottom: 10px; }
+        .setting-row { display: flex; flex-direction: column; gap: 8px; }
+        .setting-row label { font-size: 14px; display: flex; justify-content: space-between; }
+        .setting-row input[type="range"] { width: 100%; cursor: pointer; }
+        .setting-checkbox { display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
 
         #instructions {
             position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
@@ -70,10 +75,11 @@
 <body>
 
     <div id="crosshair"></div>
+    <div id="fps-counter">FPS: 0</div>
     
     <div id="ui">
         <h2>3D Survival Engine</h2>
-        <p>WASD: Move | SPACE: Jump | Click: Mine Object | F3: Camera | I: Inventory</p>
+        <p>WASD: Move | SPACE: Jump | Left Click: Mine | F3: Camera | I: Inventory | P: Settings</p>
     </div>
 
     <div id="hotbar">
@@ -84,16 +90,39 @@
         <div class="hotbar-slot"></div>
     </div>
 
+    <!-- Inventory Window -->
     <div id="inventory-overlay">
-        <div id="inventory-box">
+        <div id="inventory-box" class="modal-box">
             <div id="slots-container"></div>
             <div id="crafting-space">Crafting Space</div>
         </div>
     </div>
 
+    <!-- Settings Window -->
+    <div id="settings-overlay">
+        <div id="settings-box" class="modal-box">
+            <h2>Settings</h2>
+            
+            <div class="setting-row">
+                <label>Graphics Quality: <span id="gfx-value">100%</span></label>
+                <input type="range" id="gfx-slider" min="0" max="100" value="100">
+            </div>
+
+            <div class="setting-row">
+                <label>Audio Volume: <span id="vol-value">80%</span></label>
+                <input type="range" id="vol-slider" min="0" max="100" value="80">
+            </div>
+
+            <div class="setting-checkbox">
+                <span>Show FPS Counter</span>
+                <input type="checkbox" id="fps-toggle">
+            </div>
+        </div>
+    </div>
+
     <div id="instructions">
         <h1>CLICK TO PLAY</h1>
-        <p>WASD = Move | SPACE = Jump | Left Click = Destroy Object | F3 = Camera | I = Inventory</p>
+        <p>WASD = Move | SPACE = Jump | Left Click = Destroy Object | F3 = Camera | I = Inventory | P = Settings</p>
     </div>
 
     <script>
@@ -105,6 +134,7 @@
         const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
         renderer.shadowMap.enabled = true;
         document.body.appendChild(renderer.domElement);
 
@@ -116,12 +146,9 @@
         scene.add(sun);
 
         const loader = new THREE.GLTFLoader();
-        
-        // ??????? ??????? ??????? ????????
         const mapObjects = [];
-        let terrainMesh = null;
 
-        // --- LOAD CUSTOM MAP (tabletop_terrain.glb) ---
+        // --- LOAD MAP ---
         loader.load('tabletop_terrain.glb', (gltf) => {
             const mapScene = gltf.scene;
             mapScene.position.set(0, 0, 0);
@@ -130,22 +157,17 @@
                 if (child.isMesh) {
                     child.receiveShadow = true;
                     child.castShadow = true;
-
-                    // ????? ???? ??????? ?? ??????? ????? ??????? ????????/??????? ????????
                     mapObjects.push(child);
                 }
             });
 
             scene.add(mapScene);
-
-            // ??? ?????? ??????? ??? ???? ???? ?? ???????? ??? ???????
-            teleportPlayerToGround();
         });
 
         // --- PLAYER SETUP ---
         const playerGroup = new THREE.Group();
-        // ??? ????? ??????? ?????? ?????? ?????? ??? ???????
-        playerGroup.position.set(0, 50, 0);
+        // ???????? ????? ?? ?????? ?????? ???????? ??? ??????
+        playerGroup.position.set(15, 60, 15);
         scene.add(playerGroup);
 
         let playerMesh = null;
@@ -201,36 +223,23 @@
         }
         updatePerspective();
 
-        // --- RAYCASTING & GROUND DETECTION ---
+        // --- RAYCASTING ---
         const downRaycaster = new THREE.Raycaster();
         const downVector = new THREE.Vector3(0, -1, 0);
 
-        function teleportPlayerToGround() {
-            if (mapObjects.length === 0) return;
-            downRaycaster.set(new THREE.Vector3(playerGroup.position.x, 200, playerGroup.position.z), downVector);
-            const intersects = downRaycaster.intersectObjects(mapObjects, true);
-            if (intersects.length > 0) {
-                playerGroup.position.y = intersects[0].point.y + 0.1;
-            }
-        }
-
-        // --- BREAKING / MINING SYSTEM (???? ????? ??????? ????????) ---
+        // --- MINING SYSTEM ---
         const mineRaycaster = new THREE.Raycaster();
 
         document.addEventListener('mousedown', (e) => {
-            if (!isLocked || isInventoryOpen || e.button !== 0) return; // Left Click Only
+            if (!isLocked || isInventoryOpen || isSettingsOpen || e.button !== 0) return;
 
             mineRaycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
             const intersects = mineRaycaster.intersectObjects(mapObjects, true);
 
             if (intersects.length > 0 && intersects[0].distance <= 6.0) {
                 const hitObj = intersects[0].object;
-
-                // ?????? ?? ??? ????? ??????? ???????? ??? ???? ??? ??? ??? ????
-                // ????? ?????? ?? ?????? ??? ????? ?????
-                hitObj.scale.set(0, 0, 0); // ????? ?????
+                hitObj.scale.set(0, 0, 0);
                 
-                // ????? ???????? ?? ??????? ????????
                 const index = mapObjects.indexOf(hitObj);
                 if (index > -1) {
                     mapObjects.splice(index, 1);
@@ -241,19 +250,22 @@
             }
         });
 
-        // --- INVENTORY & POINTER LOCK ---
+        // --- UI & STATE CONTROL ---
         let isLocked = false;
         let isInventoryOpen = false;
+        let isSettingsOpen = false;
+
         const instructions = document.getElementById('instructions');
         const inventoryOverlay = document.getElementById('inventory-overlay');
+        const settingsOverlay = document.getElementById('settings-overlay');
 
         instructions.addEventListener('click', () => {
-            if(!isInventoryOpen) document.body.requestPointerLock();
+            if(!isInventoryOpen && !isSettingsOpen) document.body.requestPointerLock();
         });
 
         document.addEventListener('pointerlockchange', () => {
             isLocked = (document.pointerLockElement === document.body);
-            if (!isLocked && !isInventoryOpen) {
+            if (!isLocked && !isInventoryOpen && !isSettingsOpen) {
                 instructions.style.display = 'flex';
             } else {
                 instructions.style.display = 'none';
@@ -262,7 +274,7 @@
 
         let yaw = 0, pitch = 0;
         document.addEventListener('mousemove', (e) => {
-            if (!isLocked || isInventoryOpen) return;
+            if (!isLocked || isInventoryOpen || isSettingsOpen) return;
 
             yaw -= e.movementX * 0.0025;
             pitch -= e.movementY * 0.002;
@@ -279,7 +291,40 @@
             slotsContainer.appendChild(slot);
         }
 
-        // --- KEYBOARD & JUMPING LOGIC ---
+        // --- SETTINGS CONTROLS LOGIC ---
+        const gfxSlider = document.getElementById('gfx-slider');
+        const gfxValue = document.getElementById('gfx-value');
+        const volSlider = document.getElementById('vol-slider');
+        const volValue = document.getElementById('vol-value');
+        const fpsToggle = document.getElementById('fps-toggle');
+        const fpsCounter = document.getElementById('fps-counter');
+
+        gfxSlider.addEventListener('input', (e) => {
+            const val = e.target.value;
+            gfxValue.innerText = val + '%';
+            
+            // ??? ?? ??? ????????? ???? ????????
+            const scale = Math.max(0.2, val / 100);
+            renderer.setPixelRatio(window.devicePixelRatio * scale);
+            
+            if (val < 30) {
+                renderer.shadowMap.enabled = false;
+                scene.fog.density = 0.01;
+            } else {
+                renderer.shadowMap.enabled = true;
+                scene.fog.density = 0.003;
+            }
+        });
+
+        volSlider.addEventListener('input', (e) => {
+            volValue.innerText = e.target.value + '%';
+        });
+
+        fpsToggle.addEventListener('change', (e) => {
+            fpsCounter.style.display = e.target.checked ? 'block' : 'none';
+        });
+
+        // --- KEYBOARD LOGIC ---
         const keys = {};
         let velocityY = 0;
         let isGrounded = false;
@@ -296,6 +341,7 @@
             }
 
             if (e.code === 'KeyI') {
+                if (isSettingsOpen) closeSettings();
                 isInventoryOpen = !isInventoryOpen;
                 if (isInventoryOpen) {
                     inventoryOverlay.style.display = 'flex';
@@ -307,33 +353,70 @@
                 }
             }
 
-            if (e.code === 'Space' && isGrounded && isLocked && !isInventoryOpen) {
+            if (e.code === 'KeyP') {
+                if (isInventoryOpen) {
+                    isInventoryOpen = false;
+                    inventoryOverlay.style.display = 'none';
+                }
+                isSettingsOpen = !isSettingsOpen;
+                if (isSettingsOpen) {
+                    settingsOverlay.style.display = 'flex';
+                    instructions.style.display = 'none';
+                    document.exitPointerLock();
+                } else {
+                    closeSettings();
+                }
+            }
+
+            if (e.code === 'Space' && isGrounded && isLocked && !isInventoryOpen && !isSettingsOpen) {
                 velocityY = JUMP_FORCE;
                 isGrounded = false;
             }
 
-            if (e.code === 'Escape' && isInventoryOpen) {
-                isInventoryOpen = false;
-                inventoryOverlay.style.display = 'none';
-                document.body.requestPointerLock();
+            if (e.code === 'Escape') {
+                if (isInventoryOpen) {
+                    isInventoryOpen = false;
+                    inventoryOverlay.style.display = 'none';
+                    document.body.requestPointerLock();
+                }
+                if (isSettingsOpen) {
+                    closeSettings();
+                }
             }
         });
+
+        function closeSettings() {
+            isSettingsOpen = false;
+            settingsOverlay.style.display = 'none';
+            document.body.requestPointerLock();
+        }
 
         document.addEventListener('keyup', (e) => {
             keys[e.code] = false;
         });
 
-        // --- GAME LOOP ---
+        // --- GAME LOOP & REAL FPS ---
         let clock = new THREE.Clock();
         let walkTimer = 0;
+        let frameCount = 0;
+        let lastTime = performance.now();
 
         function animate() {
             requestAnimationFrame(animate);
 
+            // FPS Calculation
+            frameCount++;
+            const currentTime = performance.now();
+            if (currentTime - lastTime >= 1000) {
+                fpsCounter.innerText = `FPS: ${frameCount}`;
+                frameCount = 0;
+                lastTime = currentTime;
+            }
+
             const delta = clock.getDelta();
             if (mixer) mixer.update(delta);
 
-            if (isLocked && !isInventoryOpen) {
+            if (isLocked && !isInventoryOpen && !isSettingsOpen) {
                 const moveSpeed = 9 * delta;
                 const moveVector = new THREE.Vector3();
 
@@ -356,11 +439,11 @@
                     }
                 }
 
-                // --- ACCURATE GROUND & RAYCAST COLLISION ---
+                // --- GROUND COLLISION ---
                 downRaycaster.set(new THREE.Vector3(playerGroup.position.x, playerGroup.position.y + 1.5, playerGroup.position.z), downVector);
                 const groundIntersects = downRaycaster.intersectObjects(mapObjects, true);
 
-                let currentGroundY = -50; // ??????? ??? ??? ?? ??????
+                let currentGroundY = -50;
                 if (groundIntersects.length > 0) {
                     currentGroundY = groundIntersects[0].point.y;
                 }
@@ -368,7 +451,6 @@
                 velocityY += GRAVITY * delta;
                 playerGroup.position.y += velocityY * delta;
 
-                // ??????? ?? ??????? ??????? ????? ????
                 if (playerGroup.position.y <= currentGroundY + 0.05) {
                     playerGroup.position.y = currentGroundY + 0.05;
                     velocityY = 0;
