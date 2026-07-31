@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Survival Game - Fixed Physics & Mining</title>
+    <title>3D Survival Game - Robust Physics & Mining System</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; user-select: none; }
         
@@ -145,52 +145,40 @@
 
         const loader = new THREE.GLTFLoader();
         
-        // ????? ?????? ???????? ????
-        const groundObjects = [];      // ??????? ??? (??? ???????? ???????)
-        const breakableObjects = [];  // ??????? ??????? ???????
+        // ??????? ????? ??????? ??????? ??? ?????? ?????
+        const groundObjects = [];      // ??????? ??? (???? ???????? ???????)
+        const breakableObjects = [];  // ??????? ??????? ????????
         let mapSceneRoot = null;
 
-        // ???? ?????? ??? ????? ??????? ?????? ?? ????? (??? ?? ???? ????? ?? ??? ?????)
-        function getBreakableRoot(obj) {
-            let curr = obj;
-            while (curr.parent && curr.parent !== mapSceneRoot && curr.parent !== scene) {
-                curr = curr.parent;
-            }
-            return curr;
-        }
-
-        // --- LOAD MAP ---
+        // --- LOAD MAP WITH AUTOMATIC BOUNDING BOX CLASSIFICATION ---
         loader.load('tabletop_terrain.glb', (gltf) => {
             mapSceneRoot = gltf.scene;
             mapSceneRoot.position.set(0, 0, 0);
 
-            // ????? ???????? ?????? ???????
-            mapSceneRoot.children.forEach((topChild) => {
-                const name = (topChild.name || '').toLowerCase();
-                
-                // ??? ??? ??? ?????? ?????
-                if (name.includes('terrain') || name.includes('ground') || name.includes('plane') || name.includes('landscape')) {
-                    topChild.traverse((c) => {
-                        if (c.isMesh) {
-                            c.receiveShadow = true;
-                            groundObjects.push(c);
-                        }
-                    });
-                } else {
-                    // ???? ?? ??? ?????
-                    topChild.traverse((c) => {
-                        if (c.isMesh) {
-                            c.receiveShadow = true;
-                            c.castShadow = true;
-                            breakableObjects.push(c);
-                        }
-                    });
+            const box = new THREE.Box3();
+            const size = new THREE.Vector3();
 
-                    // ????? ????? ????? ????? ??????? ??????
-                    if (name.includes('rock') || name.includes('stone')) {
-                        topChild.userData = { type: 'stone', hp: 5, maxHp: 5 };
+            mapSceneRoot.traverse((child) => {
+                if (child.isMesh) {
+                    child.receiveShadow = true;
+                    child.castShadow = true;
+
+                    // ???? ??? ?????? ????????
+                    child.geometry.computeBoundingBox();
+                    box.copy(child.geometry.boundingBox);
+                    box.getSize(size);
+
+                    // ??? ???? ????? ?????? ??????? ???? (?????/??????)
+                    if (size.x > 15 || size.z > 15) {
+                        groundObjects.push(child);
                     } else {
-                        topChild.userData = { type: 'wood', hp: 3, maxHp: 3 };
+                        // ???? ???? (????/????) ???? ???????
+                        child.userData = { 
+                            hp: 3, 
+                            maxHp: 3, 
+                            originalColor: child.material.color ? child.material.color.clone() : null 
+                        };
+                        breakableObjects.push(child);
                     }
                 }
             });
@@ -266,32 +254,33 @@
             if (!isLocked || isInventoryOpen || isSettingsOpen || e.button !== 0) return;
 
             mineRaycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-            const intersects = mineRaycaster.intersectObjects(breakableObjects, true);
+            const intersects = mineRaycaster.intersectObjects(breakableObjects, false);
 
             if (intersects.length > 0 && intersects[0].distance <= 8.0) {
-                const hitChild = intersects[0].object;
-                const targetRoot = getBreakableRoot(hitChild);
+                const targetMesh = intersects[0].object;
 
-                if (targetRoot && targetRoot.userData && targetRoot.userData.hp !== undefined) {
-                    targetRoot.userData.hp -= 1;
+                if (targetMesh.userData && targetMesh.userData.hp !== undefined) {
+                    targetMesh.userData.hp -= 1;
 
-                    // ????? ?????? ??????/?????? ????? ??? ?????
-                    targetRoot.scale.multiplyScalar(0.93);
-
-                    // ????? ?????? ??????? ??? ?????? ???
-                    if (targetRoot.userData.hp <= 0) {
-                        // ????? ???? ??????? ?? ?????? ?????
-                        targetRoot.traverse((child) => {
-                            if (child.isMesh) {
-                                const idx = breakableObjects.indexOf(child);
-                                if (idx > -1) breakableObjects.splice(idx, 1);
+                    // ????? ???? ??? ????? (?????? ????)
+                    if (targetMesh.material && targetMesh.material.color) {
+                        targetMesh.material.color.setHex(0xff3333);
+                        setTimeout(() => {
+                            if (targetMesh.userData.originalColor) {
+                                targetMesh.material.color.copy(targetMesh.userData.originalColor);
                             }
-                        });
+                        }, 120);
+                    }
 
-                        // ????? ?????? ??????/?????? ???????
-                        targetRoot.visible = false;
-                        if (targetRoot.parent) {
-                            targetRoot.parent.remove(targetRoot);
+                    // ??????? ??? ?????? ????
+                    if (targetMesh.userData.hp <= 0) {
+                        targetMesh.visible = false;
+                        
+                        const idx = breakableObjects.indexOf(targetMesh);
+                        if (idx > -1) breakableObjects.splice(idx, 1);
+
+                        if (targetMesh.parent) {
+                            targetMesh.parent.remove(targetMesh);
                         }
                     }
                 }
@@ -485,12 +474,12 @@
                     }
                 }
 
-                // --- GROUND COLLISION (??? ??????? ??? ???? ??????? ?? ???????) ---
-                downRaycaster.set(new THREE.Vector3(playerGroup.position.x, playerGroup.position.y + 1.5, playerGroup.position.z), downVector);
+                // --- GROUND COLLISION (??? ?????? ??????? ??? ????) ---
+                downRaycaster.set(new THREE.Vector3(playerGroup.position.x, playerGroup.position.y + 1.0, playerGroup.position.z), downVector);
                 
                 const groundIntersects = groundObjects.length > 0 
-                    ? downRaycaster.intersectObjects(groundObjects, true) 
-                    : downRaycaster.intersectObjects(mapSceneRoot ? mapSceneRoot.children : [], true);
+                    ? downRaycaster.intersectObjects(groundObjects, false) 
+                    : [];
 
                 let currentGroundY = -50;
                 if (groundIntersects.length > 0) {
