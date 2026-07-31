@@ -1,264 +1,393 @@
 <!DOCTYPE html>
-<html lang="ar">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>My 3D Game - Third Person & Inventory</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Survival Game - Fix Spawn & Physics</title>
     <style>
-        body { margin: 0; overflow: hidden; font-family: sans-serif; }
-        #instructions {
-            position: absolute; top: 0; width: 100%; height: 100%;
-            display: flex; flex-direction: column; justify-content: center;
-            align-items: center; background: rgba(0,0,0,0.7); color: white;
-            cursor: pointer; z-index: 10; user-select: none;
-        }
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; user-select: none; }
+        
         #crosshair {
             position: absolute; top: 50%; left: 50%;
-            width: 8px; height: 8px; margin-top: -4px; margin-left: -4px;
-            background-color: rgba(255, 255, 255, 0.8); border-radius: 50%;
-            pointer-events: none; z-index: 5; border: 1px solid black;
+            width: 8px; height: 8px; background: rgba(255,255,255,0.8);
+            border-radius: 50%; transform: translate(-50%, -50%);
+            border: 1px solid black; pointer-events: none; z-index: 10;
         }
-        /* ????? ???? ?????????? (5 ?????) */
+
+        #ui { position: absolute; top: 10px; left: 10px; color: white; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); z-index: 10; }
+        #ui h2 { margin: 0 0 5px 0; font-size: 22px; }
+        #ui p { margin: 0; font-size: 13px; opacity: 0.9; }
+
         #hotbar {
             position: absolute; bottom: 20px; left: 50%;
             transform: translateX(-50%); display: flex; gap: 10px;
-            z-index: 6; user-select: none;
+            background: rgba(0,0,0,0.6); padding: 10px; border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.2); z-index: 10;
         }
-        .slot {
-            width: 60px; height: 60px;
-            background: rgba(0, 0, 0, 0.6);
+        .hotbar-slot {
+            width: 55px; height: 55px;
+            background: rgba(255,255,255,0.1);
             border: 2px solid #555; border-radius: 8px;
-            color: white; display: flex; flex-direction: column;
-            justify-content: space-between; align-items: center;
-            padding: 4px; box-sizing: border-box; font-size: 12px;
         }
-        .slot.active {
-            border-color: #ffcc00; background: rgba(255, 204, 0, 0.2);
+
+        #inventory-overlay {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.7); display: none;
+            justify-content: center; align-items: center; z-index: 30;
         }
-        .slot-num { font-weight: bold; align-self: flex-start; color: #aaa; }
-        .slot-count { align-self: flex-end; font-weight: bold; color: #00ffcc; }
+        #inventory-box {
+            width: 650px; height: 400px;
+            background: rgba(20, 20, 20, 0.95);
+            border: 2px solid #555; border-radius: 12px;
+            display: flex; padding: 20px; gap: 20px; box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+        #slots-container {
+            display: grid; grid-template-columns: repeat(5, 1fr);
+            grid-template-rows: repeat(3, 1fr); gap: 10px; flex: 2;
+        }
+        .inv-slot {
+            background: rgba(255,255,255,0.05);
+            border: 2px solid #444; border-radius: 8px;
+        }
+        #crafting-space {
+            flex: 1; background: rgba(255,255,255,0.02);
+            border: 2px dashed #444; border-radius: 10px;
+            display: flex; justify-content: center; align-items: center;
+            color: #888; font-size: 16px;
+        }
+
+        #instructions {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            color: white; background: rgba(0,0,0,0.85); display: flex;
+            flex-direction: column; align-items: center; justify-content: center;
+            cursor: pointer; z-index: 20; text-align: center;
+        }
     </style>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 </head>
 <body>
 
-<div id="crosshair"></div>
-<div id="instructions">
-    <h1>CLICK TO PLAY</h1>
-    <p>WASD = Move | Mouse = Orbit Camera | 1-5 = Select Slot | Left Click = Destroy / Mine</p>
-</div>
+    <div id="crosshair"></div>
+    
+    <div id="ui">
+        <h2>3D Survival Engine</h2>
+        <p>WASD: Move | SPACE: Jump | Click: Mine Object | F3: Camera | I: Inventory</p>
+    </div>
 
-<!-- 5 ??????? ?????? ??????????? -->
-<div id="hotbar">
-    <div class="slot active" id="slot-1"><span class="slot-num">1</span><span class="item-name">Axe</span><span class="slot-count">1</span></div>
-    <div class="slot" id="slot-2"><span class="slot-num">2</span><span class="item-name">Wood</span><span class="slot-count" id="cnt-wood">0</span></div>
-    <div class="slot" id="slot-3"><span class="slot-num">3</span><span class="item-name">Rock</span><span class="slot-count" id="cnt-rock">0</span></div>
-    <div class="slot" id="slot-4"><span class="slot-num">4</span><span class="item-name">-</span><span class="slot-count"></span></div>
-    <div class="slot" id="slot-5"><span class="slot-num">5</span><span class="item-name">-</span><span class="slot-count"></span></div>
-</div>
+    <div id="hotbar">
+        <div class="hotbar-slot"></div>
+        <div class="hotbar-slot"></div>
+        <div class="hotbar-slot"></div>
+        <div class="hotbar-slot"></div>
+        <div class="hotbar-slot"></div>
+    </div>
 
-<script>
-    // 1. ????? ??????
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87ceeb);
+    <div id="inventory-overlay">
+        <div id="inventory-box">
+            <div id="slots-container"></div>
+            <div id="crafting-space">Crafting Space</div>
+        </div>
+    </div>
 
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.shadowMap.enabled = true;
-    document.body.appendChild(renderer.domElement);
+    <div id="instructions">
+        <h1>CLICK TO PLAY</h1>
+        <p>WASD = Move | SPACE = Jump | Left Click = Destroy Object | F3 = Camera | I = Inventory</p>
+    </div>
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
-    scene.add(ambientLight);
+    <script>
+        // --- SCENE SETUP ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87ceeb);
+        scene.fog = new THREE.FogExp2(0x87ceeb, 0.003);
 
-    const sun = new THREE.DirectionalLight(0xffffff, 1.2);
-    sun.position.set(100, 150, 50);
-    sun.castShadow = true;
-    scene.add(sun);
+        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
 
-    // 2. ????? ?????????GLB
-    const loader = new THREE.GLTFLoader();
-    let playerModel = null;
-    let terrainModel = null;
-    const destructibleObjects = [];
+        // --- LIGHTS ---
+        scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+        const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+        sun.position.set(50, 150, 50);
+        sun.castShadow = true;
+        scene.add(sun);
 
-    // ????? ???????
-    loader.load('tabletop_terrain.glb', (gltf) => {
-        terrainModel = gltf.scene;
-        scene.add(terrainModel);
+        const loader = new THREE.GLTFLoader();
+        
+        // ??????? ??????? ??????? ????????
+        const mapObjects = [];
+        let terrainMesh = null;
 
-        terrainModel.traverse((child) => {
-            if (child.isMesh) {
-                child.castShadow = true;
-                child.receiveShadow = true;
+        // --- LOAD CUSTOM MAP (tabletop_terrain.glb) ---
+        loader.load('tabletop_terrain.glb', (gltf) => {
+            const mapScene = gltf.scene;
+            mapScene.position.set(0, 0, 0);
 
-                const name = child.name.toLowerCase();
-                if (name.includes('tree') || name.includes('rock') || name.includes('stone') || name.includes('wood')) {
-                    destructibleObjects.push(child);
+            mapScene.traverse((child) => {
+                if (child.isMesh) {
+                    child.receiveShadow = true;
+                    child.castShadow = true;
+
+                    // ????? ???? ??????? ?? ??????? ????? ??????? ????????/??????? ????????
+                    mapObjects.push(child);
                 }
+            });
+
+            scene.add(mapScene);
+
+            // ??? ?????? ??????? ??? ???? ???? ?? ???????? ??? ???????
+            teleportPlayerToGround();
+        });
+
+        // --- PLAYER SETUP ---
+        const playerGroup = new THREE.Group();
+        // ??? ????? ??????? ?????? ?????? ?????? ??? ???????
+        playerGroup.position.set(0, 50, 0);
+        scene.add(playerGroup);
+
+        let playerMesh = null;
+        let mixer = null;
+        let animationsMap = new Map();
+        const playerRadius = 0.6;
+        const PLAYER_HEIGHT_OFFSET = 1.0;
+
+        loader.load('player.glb', (gltf) => {
+            playerMesh = gltf.scene;
+            playerMesh.scale.set(1, 1, 1);
+            playerMesh.rotation.y = Math.PI;
+            playerMesh.castShadow = true;
+            playerMesh.position.y = PLAYER_HEIGHT_OFFSET;
+            playerGroup.add(playerMesh);
+
+            if(gltf.animations && gltf.animations.length > 0) {
+                mixer = new THREE.AnimationMixer(playerMesh);
+                gltf.animations.forEach(clip => {
+                    animationsMap.set(clip.name.toLowerCase(), mixer.clipAction(clip));
+                });
+                const firstAnim = animationsMap.values().next().value;
+                if(firstAnim) firstAnim.play();
+            }
+
+            updatePerspective();
+        }, undefined, () => {
+            playerMesh = new THREE.Mesh(
+                new THREE.CapsuleGeometry(playerRadius, 1, 4, 8),
+                new THREE.MeshStandardMaterial({ color: 0x2266cc })
+            );
+            playerMesh.position.y = PLAYER_HEIGHT_OFFSET + 0.5;
+            playerGroup.add(playerMesh);
+            updatePerspective();
+        });
+
+        // --- CAMERA PERSPECTIVE ---
+        let isThirdPerson = false;
+        const cameraRig = new THREE.Group();
+        playerGroup.add(cameraRig);
+        cameraRig.add(camera);
+
+        function updatePerspective() {
+            if (!isThirdPerson) {
+                camera.position.set(0, PLAYER_HEIGHT_OFFSET + 1.6, 0.1);
+                camera.rotation.set(0, 0, 0);
+                if (playerMesh) playerMesh.visible = false;
+            } else {
+                camera.position.set(0, PLAYER_HEIGHT_OFFSET + 2.0, 3.8);
+                camera.rotation.set(-0.2, 0, 0);
+                if (playerMesh) playerMesh.visible = true;
+            }
+        }
+        updatePerspective();
+
+        // --- RAYCASTING & GROUND DETECTION ---
+        const downRaycaster = new THREE.Raycaster();
+        const downVector = new THREE.Vector3(0, -1, 0);
+
+        function teleportPlayerToGround() {
+            if (mapObjects.length === 0) return;
+            downRaycaster.set(new THREE.Vector3(playerGroup.position.x, 200, playerGroup.position.z), downVector);
+            const intersects = downRaycaster.intersectObjects(mapObjects, true);
+            if (intersects.length > 0) {
+                playerGroup.position.y = intersects[0].point.y + 0.1;
+            }
+        }
+
+        // --- BREAKING / MINING SYSTEM (???? ????? ??????? ????????) ---
+        const mineRaycaster = new THREE.Raycaster();
+
+        document.addEventListener('mousedown', (e) => {
+            if (!isLocked || isInventoryOpen || e.button !== 0) return; // Left Click Only
+
+            mineRaycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+            const intersects = mineRaycaster.intersectObjects(mapObjects, true);
+
+            if (intersects.length > 0 && intersects[0].distance <= 6.0) {
+                const hitObj = intersects[0].object;
+
+                // ?????? ?? ??? ????? ??????? ???????? ??? ???? ??? ??? ??? ????
+                // ????? ?????? ?? ?????? ??? ????? ?????
+                hitObj.scale.set(0, 0, 0); // ????? ?????
+                
+                // ????? ???????? ?? ??????? ????????
+                const index = mapObjects.indexOf(hitObj);
+                if (index > -1) {
+                    mapObjects.splice(index, 1);
+                }
+                setTimeout(() => {
+                    if(hitObj.parent) hitObj.parent.remove(hitObj);
+                }, 50);
             }
         });
-    });
 
-    // ????? ??????
-    loader.load('player.glb', (gltf) => {
-        playerModel = gltf.scene;
-        playerModel.scale.set(1, 1, 1);
-        scene.add(playerModel);
-    });
+        // --- INVENTORY & POINTER LOCK ---
+        let isLocked = false;
+        let isInventoryOpen = false;
+        const instructions = document.getElementById('instructions');
+        const inventoryOverlay = document.getElementById('inventory-overlay');
 
-    // 3. ????? ?????? ????????? ??????? ??????? ?????? ???????? ??????
-    const player = {
-        position: new THREE.Vector3(0, 15, 10), // ????? ?????? ?? ?????? ????? ??? ????? ?????
-        speed: 0.45, // ???? ?????? ??????? ??????
-        radius: 0.8,
-        velocityY: 0
-    };
+        instructions.addEventListener('click', () => {
+            if(!isInventoryOpen) document.body.requestPointerLock();
+        });
 
-    // ??????? ?????????? ????? ???????
-    const inventory = { wood: 0, rock: 0, selectedSlot: 1 };
+        document.addEventListener('pointerlockchange', () => {
+            isLocked = (document.pointerLockElement === document.body);
+            if (!isLocked && !isInventoryOpen) {
+                instructions.style.display = 'flex';
+            } else {
+                instructions.style.display = 'none';
+            }
+        });
 
-    function updateInventoryUI() {
-        document.getElementById('cnt-wood').innerText = inventory.wood;
-        document.getElementById('cnt-rock').innerText = inventory.rock;
-    }
+        let yaw = 0, pitch = 0;
+        document.addEventListener('mousemove', (e) => {
+            if (!isLocked || isInventoryOpen) return;
 
-    // ?????? ??? ??????? 1-5
-    document.addEventListener('keydown', (e) => {
-        if (['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'].includes(e.code)) {
-            let num = parseInt(e.code.replace('Digit', ''));
-            inventory.selectedSlot = num;
-            document.querySelectorAll('.slot').forEach(s => s.classList.remove('active'));
-            document.getElementById(`slot-${num}`).classList.add('active');
+            yaw -= e.movementX * 0.0025;
+            pitch -= e.movementY * 0.002;
+            pitch = Math.max(-1.2, Math.min(1.2, pitch));
+
+            playerGroup.rotation.y = yaw;
+            cameraRig.rotation.x = pitch;
+        });
+
+        const slotsContainer = document.getElementById('slots-container');
+        for(let i=0; i<15; i++) {
+            const slot = document.createElement('div');
+            slot.className = 'inv-slot';
+            slotsContainer.appendChild(slot);
         }
-    });
 
-    // 4. ?????? ?? ???????? (????? ????? ?????? TP)
-    const keys = {};
-    document.addEventListener('keydown', (e) => keys[e.code] = true);
-    document.addEventListener('keyup', (e) => keys[e.code] = false);
+        // --- KEYBOARD & JUMPING LOGIC ---
+        const keys = {};
+        let velocityY = 0;
+        let isGrounded = false;
+        const GRAVITY = -25;
+        const JUMP_FORCE = 9.5;
 
-    const instructions = document.getElementById('instructions');
-    instructions.addEventListener('click', () => document.body.requestPointerLock());
+        document.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
 
-    document.addEventListener('pointerlockchange', () => {
-        instructions.style.display = (document.pointerLockElement === document.body) ? 'none' : 'flex';
-    });
+            if (e.code === 'F3') {
+                e.preventDefault();
+                isThirdPerson = !isThirdPerson;
+                updatePerspective();
+            }
 
-    let yaw = 0, pitch = 0.2;
-    const cameraDistance = 5; // ????? ????? ?? ??????? ??? ?????
-
-    document.addEventListener('mousemove', (e) => {
-        if (document.pointerLockElement === document.body) {
-            yaw -= e.movementX * 0.003;
-            pitch -= e.movementY * 0.003;
-            pitch = Math.max(-0.2, Math.min(Math.PI / 3, pitch)); // ????? ??? ????? ????? ?????? ???????
-        }
-    });
-
-    // 5. ??????? ?????? ??????? ???????
-    const raycaster = new THREE.Raycaster();
-    document.addEventListener('mousedown', (e) => {
-        if (document.pointerLockElement === document.body && e.button === 0) {
-            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-            const intersects = raycaster.intersectObjects(terrainModel ? terrainModel.children : [], true);
-
-            if (intersects.length > 0 && intersects[0].distance < 12) {
-                const hitMesh = intersects[0].object;
-                const name = hitMesh.name.toLowerCase();
-
-                // ????? ?????? ??????? ???????
-                if (name.includes('rock') || name.includes('stone')) {
-                    inventory.rock += 1;
+            if (e.code === 'KeyI') {
+                isInventoryOpen = !isInventoryOpen;
+                if (isInventoryOpen) {
+                    inventoryOverlay.style.display = 'flex';
+                    instructions.style.display = 'none';
+                    document.exitPointerLock();
                 } else {
-                    inventory.wood += 1;
-                }
-                updateInventoryUI();
-
-                // ????? ?????? ????????
-                hitMesh.visible = false;
-                const idx = destructibleObjects.indexOf(hitMesh);
-                if (idx !== -1) destructibleObjects.splice(idx, 1);
-            }
-        }
-    });
-
-    // 6. ??????? ????? ???????? ?? ?????
-    function handlePhysics(targetPos) {
-        // ???????? ??????? ??? ????? ?????
-        const minTerrainY = 0; // ????? ????? ???? ????? ??? ??????
-        if (targetPos.y > minTerrainY) {
-            player.velocityY -= 0.015;
-            targetPos.y += player.velocityY;
-        }
-        if (targetPos.y <= minTerrainY) {
-            targetPos.y = minTerrainY;
-            player.velocityY = 0;
-        }
-
-        // ??????? ?? ???????? ????????
-        for (let obj of destructibleObjects) {
-            if (!obj.visible) continue;
-            const objPos = new THREE.Vector3();
-            obj.getWorldPosition(objPos);
-
-            let dx = targetPos.x - objPos.x;
-            let dz = targetPos.z - objPos.z;
-            let dist = Math.sqrt(dx * dx + dz * dz);
-            let minDist = player.radius + 1.2;
-
-            if (dist < minDist) {
-                let overlap = minDist - dist;
-                let angle = Math.atan2(dz, dx);
-                targetPos.x += Math.cos(angle) * overlap;
-                targetPos.z += Math.sin(angle) * overlap;
-            }
-        }
-    }
-
-    // 7. ?????? ???????? ????? (Game Loop)
-    function animate() {
-        requestAnimationFrame(animate);
-
-        if (document.pointerLockElement === document.body) {
-            const front = (keys['KeyS'] ? 1 : 0) - (keys['KeyW'] ? 1 : 0);
-            const side = (keys['KeyD'] ? 1 : 0) - (keys['KeyA'] ? 1 : 0);
-
-            const moveVector = new THREE.Vector3(side, 0, front).normalize();
-            moveVector.applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
-
-            let nextPos = player.position.clone().addScaledVector(moveVector, player.speed);
-
-            handlePhysics(nextPos);
-            player.position.copy(nextPos);
-
-            // ????? ???? ?????? ???? ??????
-            if (playerModel) {
-                playerModel.position.copy(player.position);
-                if (moveVector.length() > 0) {
-                    playerModel.rotation.y = Math.atan2(moveVector.x, moveVector.z);
+                    inventoryOverlay.style.display = 'none';
+                    document.body.requestPointerLock();
                 }
             }
 
-            // ????? ???? ?????? ????? ????? ?????? (Third-Person Camera)
-            const camX = player.position.x - Math.sin(yaw) * cameraDistance * Math.cos(pitch);
-            const camY = player.position.y + 2 + Math.sin(pitch) * cameraDistance;
-            const camZ = player.position.z - Math.cos(yaw) * cameraDistance * Math.cos(pitch);
+            if (e.code === 'Space' && isGrounded && isLocked && !isInventoryOpen) {
+                velocityY = JUMP_FORCE;
+                isGrounded = false;
+            }
 
-            camera.position.set(camX, camY, camZ);
-            camera.lookAt(player.position.x, player.position.y + 1.5, player.position.z);
+            if (e.code === 'Escape' && isInventoryOpen) {
+                isInventoryOpen = false;
+                inventoryOverlay.style.display = 'none';
+                document.body.requestPointerLock();
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            keys[e.code] = false;
+        });
+
+        // --- GAME LOOP ---
+        let clock = new THREE.Clock();
+        let walkTimer = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+            if (mixer) mixer.update(delta);
+
+            if (isLocked && !isInventoryOpen) {
+                const moveSpeed = 9 * delta;
+                const moveVector = new THREE.Vector3();
+
+                if (keys['KeyW']) moveVector.z -= 1;
+                if (keys['KeyS']) moveVector.z += 1;
+                if (keys['KeyA']) moveVector.x -= 1;
+                if (keys['KeyD']) moveVector.x += 1;
+
+                let isMoving = moveVector.lengthSq() > 0;
+
+                if (isMoving) {
+                    moveVector.normalize();
+                    moveVector.applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+                    playerGroup.position.addScaledVector(moveVector, moveSpeed);
+
+                    if (playerMesh && (!mixer || animationsMap.size === 0)) {
+                        walkTimer += delta * 12;
+                        playerMesh.rotation.z = Math.sin(walkTimer) * 0.05;
+                        playerMesh.rotation.x = Math.cos(walkTimer * 2) * 0.03;
+                    }
+                }
+
+                // --- ACCURATE GROUND & RAYCAST COLLISION ---
+                downRaycaster.set(new THREE.Vector3(playerGroup.position.x, playerGroup.position.y + 1.5, playerGroup.position.z), downVector);
+                const groundIntersects = downRaycaster.intersectObjects(mapObjects, true);
+
+                let currentGroundY = -50; // ??????? ??? ??? ?? ??????
+                if (groundIntersects.length > 0) {
+                    currentGroundY = groundIntersects[0].point.y;
+                }
+
+                velocityY += GRAVITY * delta;
+                playerGroup.position.y += velocityY * delta;
+
+                // ??????? ?? ??????? ??????? ????? ????
+                if (playerGroup.position.y <= currentGroundY + 0.05) {
+                    playerGroup.position.y = currentGroundY + 0.05;
+                    velocityY = 0;
+                    isGrounded = true;
+                } else {
+                    isGrounded = false;
+                }
+            }
+
+            renderer.render(scene, camera);
         }
 
-        renderer.render(scene, camera);
-    }
+        animate();
 
-    animate();
-
-    window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-    });
-</script>
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
 </body>
 </html>
