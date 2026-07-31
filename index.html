@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Survival Game - Fixed Mining & HP</title>
+    <title>3D Survival Game - Fixed Physics & Mining</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; user-select: none; }
         
@@ -90,7 +90,6 @@
         <div class="hotbar-slot"></div>
     </div>
 
-    <!-- Inventory Window -->
     <div id="inventory-overlay">
         <div id="inventory-box" class="modal-box">
             <div id="slots-container"></div>
@@ -98,7 +97,6 @@
         </div>
     </div>
 
-    <!-- Settings Window -->
     <div id="settings-overlay">
         <div id="settings-box" class="modal-box">
             <h2>Settings</h2>
@@ -146,36 +144,58 @@
         scene.add(sun);
 
         const loader = new THREE.GLTFLoader();
-        const mapObjects = [];
-        const breakableObjects = []; // ??????? ?????? ???????? ??????? ??????? ??????? ???
+        
+        // ????? ?????? ???????? ????
+        const groundObjects = [];      // ??????? ??? (??? ???????? ???????)
+        const breakableObjects = [];  // ??????? ??????? ???????
+        let mapSceneRoot = null;
+
+        // ???? ?????? ??? ????? ??????? ?????? ?? ????? (??? ?? ???? ????? ?? ??? ?????)
+        function getBreakableRoot(obj) {
+            let curr = obj;
+            while (curr.parent && curr.parent !== mapSceneRoot && curr.parent !== scene) {
+                curr = curr.parent;
+            }
+            return curr;
+        }
 
         // --- LOAD MAP ---
         loader.load('tabletop_terrain.glb', (gltf) => {
-            const mapScene = gltf.scene;
-            mapScene.position.set(0, 0, 0);
+            mapSceneRoot = gltf.scene;
+            mapSceneRoot.position.set(0, 0, 0);
 
-            mapScene.traverse((child) => {
-                if (child.isMesh) {
-                    child.receiveShadow = true;
-                    child.castShadow = true;
-                    mapObjects.push(child);
-
-                    // ??????? ??????? ???????? ??? ???????? ??????? ???????
-                    const name = child.name.toLowerCase();
-                    if (!name.includes('terrain') && !name.includes('ground') && !name.includes('plane')) {
-                        // ????? ??? ????? ??? ??? ??????
-                        if (name.includes('rock') || name.includes('stone')) {
-                            child.userData = { type: 'stone', hp: 5, maxHp: 5 };
-                        } else {
-                            // ????????? ????? ?? ???
-                            child.userData = { type: 'wood', hp: 3, maxHp: 3 };
+            // ????? ???????? ?????? ???????
+            mapSceneRoot.children.forEach((topChild) => {
+                const name = (topChild.name || '').toLowerCase();
+                
+                // ??? ??? ??? ?????? ?????
+                if (name.includes('terrain') || name.includes('ground') || name.includes('plane') || name.includes('landscape')) {
+                    topChild.traverse((c) => {
+                        if (c.isMesh) {
+                            c.receiveShadow = true;
+                            groundObjects.push(c);
                         }
-                        breakableObjects.push(child);
+                    });
+                } else {
+                    // ???? ?? ??? ?????
+                    topChild.traverse((c) => {
+                        if (c.isMesh) {
+                            c.receiveShadow = true;
+                            c.castShadow = true;
+                            breakableObjects.push(c);
+                        }
+                    });
+
+                    // ????? ????? ????? ????? ??????? ??????
+                    if (name.includes('rock') || name.includes('stone')) {
+                        topChild.userData = { type: 'stone', hp: 5, maxHp: 5 };
+                    } else {
+                        topChild.userData = { type: 'wood', hp: 3, maxHp: 3 };
                     }
                 }
             });
 
-            scene.add(mapScene);
+            scene.add(mapSceneRoot);
         });
 
         // --- PLAYER SETUP ---
@@ -239,39 +259,40 @@
         // --- RAYCASTING ---
         const downRaycaster = new THREE.Raycaster();
         const downVector = new THREE.Vector3(0, -1, 0);
-
-        // --- INDIVIDUAL MINING & HP SYSTEM ---
         const mineRaycaster = new THREE.Raycaster();
 
+        // --- MINING SYSTEM ---
         document.addEventListener('mousedown', (e) => {
             if (!isLocked || isInventoryOpen || isSettingsOpen || e.button !== 0) return;
 
             mineRaycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-            const intersects = mineRaycaster.intersectObjects(breakableObjects, false);
+            const intersects = mineRaycaster.intersectObjects(breakableObjects, true);
 
-            if (intersects.length > 0 && intersects[0].distance <= 7.0) {
-                const hitObj = intersects[0].object;
+            if (intersects.length > 0 && intersects[0].distance <= 8.0) {
+                const hitChild = intersects[0].object;
+                const targetRoot = getBreakableRoot(hitChild);
 
-                if (hitObj.userData && hitObj.userData.hp !== undefined) {
-                    hitObj.userData.hp -= 1; // ????? ???? ?????
+                if (targetRoot && targetRoot.userData && targetRoot.userData.hp !== undefined) {
+                    targetRoot.userData.hp -= 1;
 
-                    // ?????? ???? ??????? ??????? ?? ?????
-                    hitObj.scale.multiplyScalar(0.92);
+                    // ????? ?????? ??????/?????? ????? ??? ?????
+                    targetRoot.scale.multiplyScalar(0.93);
 
-                    // ?????? ?????? ??? ?????? ???
-                    if (hitObj.userData.hp <= 0) {
-                        hitObj.scale.set(0, 0, 0);
-                        
-                        // ????? ?? ?????????
-                        const breakIdx = breakableObjects.indexOf(hitObj);
-                        if (breakIdx > -1) breakableObjects.splice(breakIdx, 1);
+                    // ????? ?????? ??????? ??? ?????? ???
+                    if (targetRoot.userData.hp <= 0) {
+                        // ????? ???? ??????? ?? ?????? ?????
+                        targetRoot.traverse((child) => {
+                            if (child.isMesh) {
+                                const idx = breakableObjects.indexOf(child);
+                                if (idx > -1) breakableObjects.splice(idx, 1);
+                            }
+                        });
 
-                        const mapIdx = mapObjects.indexOf(hitObj);
-                        if (mapIdx > -1) mapObjects.splice(mapIdx, 1);
-
-                        setTimeout(() => {
-                            if (hitObj.parent) hitObj.parent.remove(hitObj);
-                        }, 50);
+                        // ????? ?????? ??????/?????? ???????
+                        targetRoot.visible = false;
+                        if (targetRoot.parent) {
+                            targetRoot.parent.remove(targetRoot);
+                        }
                     }
                 }
             }
@@ -464,9 +485,12 @@
                     }
                 }
 
-                // --- GROUND COLLISION ---
+                // --- GROUND COLLISION (??? ??????? ??? ???? ??????? ?? ???????) ---
                 downRaycaster.set(new THREE.Vector3(playerGroup.position.x, playerGroup.position.y + 1.5, playerGroup.position.z), downVector);
-                const groundIntersects = downRaycaster.intersectObjects(mapObjects, true);
+                
+                const groundIntersects = groundObjects.length > 0 
+                    ? downRaycaster.intersectObjects(groundObjects, true) 
+                    : downRaycaster.intersectObjects(mapSceneRoot ? mapSceneRoot.children : [], true);
 
                 let currentGroundY = -50;
                 if (groundIntersects.length > 0) {
