@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Survival Game - Robust Physics & Mining System</title>
+    <title>3D Survival Game - Fixed Physics & Mining</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; user-select: none; }
         
@@ -144,42 +144,19 @@
         scene.add(sun);
 
         const loader = new THREE.GLTFLoader();
-        
-        // ??????? ????? ??????? ??????? ??? ?????? ?????
-        const groundObjects = [];      // ??????? ??? (???? ???????? ???????)
-        const breakableObjects = [];  // ??????? ??????? ????????
         let mapSceneRoot = null;
+        const allMapMeshes = [];
 
-        // --- LOAD MAP WITH AUTOMATIC BOUNDING BOX CLASSIFICATION ---
+        // --- LOAD MAP ---
         loader.load('tabletop_terrain.glb', (gltf) => {
             mapSceneRoot = gltf.scene;
             mapSceneRoot.position.set(0, 0, 0);
-
-            const box = new THREE.Box3();
-            const size = new THREE.Vector3();
 
             mapSceneRoot.traverse((child) => {
                 if (child.isMesh) {
                     child.receiveShadow = true;
                     child.castShadow = true;
-
-                    // ???? ??? ?????? ????????
-                    child.geometry.computeBoundingBox();
-                    box.copy(child.geometry.boundingBox);
-                    box.getSize(size);
-
-                    // ??? ???? ????? ?????? ??????? ???? (?????/??????)
-                    if (size.x > 15 || size.z > 15) {
-                        groundObjects.push(child);
-                    } else {
-                        // ???? ???? (????/????) ???? ???????
-                        child.userData = { 
-                            hp: 3, 
-                            maxHp: 3, 
-                            originalColor: child.material.color ? child.material.color.clone() : null 
-                        };
-                        breakableObjects.push(child);
-                    }
+                    allMapMeshes.push(child);
                 }
             });
 
@@ -254,33 +231,43 @@
             if (!isLocked || isInventoryOpen || isSettingsOpen || e.button !== 0) return;
 
             mineRaycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-            const intersects = mineRaycaster.intersectObjects(breakableObjects, false);
+            const intersects = mineRaycaster.intersectObjects(allMapMeshes, true);
 
             if (intersects.length > 0 && intersects[0].distance <= 8.0) {
-                const targetMesh = intersects[0].object;
+                const hitObj = intersects[0].object;
+                const name = (hitObj.name || '').toLowerCase();
 
-                if (targetMesh.userData && targetMesh.userData.hp !== undefined) {
-                    targetMesh.userData.hp -= 1;
-
-                    // ????? ???? ??? ????? (?????? ????)
-                    if (targetMesh.material && targetMesh.material.color) {
-                        targetMesh.material.color.setHex(0xff3333);
-                        setTimeout(() => {
-                            if (targetMesh.userData.originalColor) {
-                                targetMesh.material.color.copy(targetMesh.userData.originalColor);
-                            }
-                        }, 120);
+                // ???????? ?? ???????? ??? ???????
+                if (!name.includes('terrain') && !name.includes('ground') && !name.includes('plane') && !name.includes('landscape')) {
+                    
+                    // ????? ??? ??? ?? ??? ??????
+                    if (!hitObj.userData.hp) {
+                        hitObj.userData.hp = 3;
+                        hitObj.userData.isBreakable = true;
+                        if (hitObj.material && hitObj.material.color) {
+                            hitObj.userData.originalColor = hitObj.material.color.clone();
+                        }
                     }
 
-                    // ??????? ??? ?????? ????
-                    if (targetMesh.userData.hp <= 0) {
-                        targetMesh.visible = false;
-                        
-                        const idx = breakableObjects.indexOf(targetMesh);
-                        if (idx > -1) breakableObjects.splice(idx, 1);
+                    hitObj.userData.hp -= 1;
 
-                        if (targetMesh.parent) {
-                            targetMesh.parent.remove(targetMesh);
+                    // ????? ?????? ?????? ??????? ??? ?????
+                    if (hitObj.material && hitObj.material.color) {
+                        hitObj.material.color.setHex(0xff2222);
+                        setTimeout(() => {
+                            if (hitObj.userData.originalColor) {
+                                hitObj.material.color.copy(hitObj.userData.originalColor);
+                            }
+                        }, 100);
+                    }
+
+                    // ????? ?????? ??????? ??? ?????? ?????
+                    if (hitObj.userData.hp <= 0) {
+                        hitObj.visible = false;
+                        
+                        // ?? ??? ????? ?? ????/???? ???? ????? ????????
+                        if (hitObj.parent && hitObj.parent !== mapSceneRoot && hitObj.parent !== scene) {
+                            hitObj.parent.visible = false;
                         }
                     }
                 }
@@ -474,16 +461,24 @@
                     }
                 }
 
-                // --- GROUND COLLISION (??? ?????? ??????? ??? ????) ---
-                downRaycaster.set(new THREE.Vector3(playerGroup.position.x, playerGroup.position.y + 1.0, playerGroup.position.z), downVector);
+                // --- ACCURATE GROUND COLLISION LOGIC ---
+                // ????? ???? ?? ????? ??? ?????? ??? ???? ?? ????? ?? ??????? ?? ??????? ????????
+                downRaycaster.set(new THREE.Vector3(playerGroup.position.x, playerGroup.position.y + 0.5, playerGroup.position.z), downVector);
                 
-                const groundIntersects = groundObjects.length > 0 
-                    ? downRaycaster.intersectObjects(groundObjects, false) 
-                    : [];
+                const groundHits = downRaycaster.intersectObjects(allMapMeshes, true);
 
-                let currentGroundY = -50;
-                if (groundIntersects.length > 0) {
-                    currentGroundY = groundIntersects[0].point.y;
+                let currentGroundY = -100;
+                for (let i = 0; i < groundHits.length; i++) {
+                    const hit = groundHits[i];
+                    
+                    // ????? ??????? ??????? ?? ??????? ????????
+                    if (!hit.object.visible || hit.object.userData.isBreakable) continue;
+
+                    // ?????? ?? ?? ????? ??? ??? ?????? ?????? ???? ???? ???
+                    if (hit.point.y <= playerGroup.position.y + 0.6) {
+                        currentGroundY = hit.point.y;
+                        break;
+                    }
                 }
 
                 velocityY += GRAVITY * delta;
