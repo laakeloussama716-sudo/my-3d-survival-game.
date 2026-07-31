@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Survival Game - Custom Map Loaded</title>
+    <title>3D Survival Game - Fix Spawn & Physics</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; user-select: none; }
         
@@ -73,7 +73,7 @@
     
     <div id="ui">
         <h2>3D Survival Engine</h2>
-        <p>WASD: Move | SPACE: Jump | F3: Camera | I: Inventory</p>
+        <p>WASD: Move | SPACE: Jump | Click: Mine Object | F3: Camera | I: Inventory</p>
     </div>
 
     <div id="hotbar">
@@ -93,14 +93,14 @@
 
     <div id="instructions">
         <h1>CLICK TO PLAY</h1>
-        <p>WASD = Move | SPACE = Jump | F3 = Camera View | I = Inventory</p>
+        <p>WASD = Move | SPACE = Jump | Left Click = Destroy Object | F3 = Camera | I = Inventory</p>
     </div>
 
     <script>
         // --- SCENE SETUP ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87ceeb);
-        scene.fog = new THREE.FogExp2(0x87ceeb, 0.005);
+        scene.fog = new THREE.FogExp2(0x87ceeb, 0.003);
 
         const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -109,47 +109,49 @@
         document.body.appendChild(renderer.domElement);
 
         // --- LIGHTS ---
-        scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-        const sun = new THREE.DirectionalLight(0xffffff, 0.9);
-        sun.position.set(50, 100, 50);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+        const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+        sun.position.set(50, 150, 50);
         sun.castShadow = true;
         scene.add(sun);
 
         const loader = new THREE.GLTFLoader();
-        const colliders = [];
+        
+        // ??????? ??????? ??????? ????????
+        const mapObjects = [];
+        let terrainMesh = null;
 
         // --- LOAD CUSTOM MAP (tabletop_terrain.glb) ---
-        let mapMesh = null;
         loader.load('tabletop_terrain.glb', (gltf) => {
-            mapMesh = gltf.scene;
-            mapMesh.position.set(0, 0, 0);
-            
-            mapMesh.traverse((child) => {
+            const mapScene = gltf.scene;
+            mapScene.position.set(0, 0, 0);
+
+            mapScene.traverse((child) => {
                 if (child.isMesh) {
                     child.receiveShadow = true;
                     child.castShadow = true;
+
+                    // ????? ???? ??????? ?? ??????? ????? ??????? ????????/??????? ????????
+                    mapObjects.push(child);
                 }
             });
 
-            scene.add(mapMesh);
-        }, undefined, (error) => {
-            console.error("Map loading error, falling back to basic floor", error);
-            // Fallback plane if map file isn't uploaded yet
-            const fallbackGeo = new THREE.PlaneGeometry(200, 200);
-            const fallbackMat = new THREE.MeshLambertMaterial({ color: 0x3b7a57 });
-            const floor = new THREE.Mesh(fallbackGeo, fallbackMat);
-            floor.rotation.x = -Math.PI / 2;
-            scene.add(floor);
+            scene.add(mapScene);
+
+            // ??? ?????? ??????? ??? ???? ???? ?? ???????? ??? ???????
+            teleportPlayerToGround();
         });
 
         // --- PLAYER SETUP ---
         const playerGroup = new THREE.Group();
+        // ??? ????? ??????? ?????? ?????? ?????? ??? ???????
+        playerGroup.position.set(0, 50, 0);
         scene.add(playerGroup);
 
         let playerMesh = null;
         let mixer = null;
         let animationsMap = new Map();
-        const playerRadius = 0.5;
+        const playerRadius = 0.6;
         const PLAYER_HEIGHT_OFFSET = 1.0;
 
         loader.load('player.glb', (gltf) => {
@@ -199,6 +201,46 @@
         }
         updatePerspective();
 
+        // --- RAYCASTING & GROUND DETECTION ---
+        const downRaycaster = new THREE.Raycaster();
+        const downVector = new THREE.Vector3(0, -1, 0);
+
+        function teleportPlayerToGround() {
+            if (mapObjects.length === 0) return;
+            downRaycaster.set(new THREE.Vector3(playerGroup.position.x, 200, playerGroup.position.z), downVector);
+            const intersects = downRaycaster.intersectObjects(mapObjects, true);
+            if (intersects.length > 0) {
+                playerGroup.position.y = intersects[0].point.y + 0.1;
+            }
+        }
+
+        // --- BREAKING / MINING SYSTEM (???? ????? ??????? ????????) ---
+        const mineRaycaster = new THREE.Raycaster();
+
+        document.addEventListener('mousedown', (e) => {
+            if (!isLocked || isInventoryOpen || e.button !== 0) return; // Left Click Only
+
+            mineRaycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+            const intersects = mineRaycaster.intersectObjects(mapObjects, true);
+
+            if (intersects.length > 0 && intersects[0].distance <= 6.0) {
+                const hitObj = intersects[0].object;
+
+                // ?????? ?? ??? ????? ??????? ???????? ??? ???? ??? ??? ??? ????
+                // ????? ?????? ?? ?????? ??? ????? ?????
+                hitObj.scale.set(0, 0, 0); // ????? ?????
+                
+                // ????? ???????? ?? ??????? ????????
+                const index = mapObjects.indexOf(hitObj);
+                if (index > -1) {
+                    mapObjects.splice(index, 1);
+                }
+                setTimeout(() => {
+                    if(hitObj.parent) hitObj.parent.remove(hitObj);
+                }, 50);
+            }
+        });
+
         // --- INVENTORY & POINTER LOCK ---
         let isLocked = false;
         let isInventoryOpen = false;
@@ -240,9 +282,9 @@
         // --- KEYBOARD & JUMPING LOGIC ---
         const keys = {};
         let velocityY = 0;
-        let isGrounded = true;
+        let isGrounded = false;
         const GRAVITY = -25;
-        const JUMP_FORCE = 9;
+        const JUMP_FORCE = 9.5;
 
         document.addEventListener('keydown', (e) => {
             keys[e.code] = true;
@@ -292,7 +334,7 @@
             if (mixer) mixer.update(delta);
 
             if (isLocked && !isInventoryOpen) {
-                const moveSpeed = 8 * delta;
+                const moveSpeed = 9 * delta;
                 const moveVector = new THREE.Vector3();
 
                 if (keys['KeyW']) moveVector.z -= 1;
@@ -312,21 +354,27 @@
                         playerMesh.rotation.z = Math.sin(walkTimer) * 0.05;
                         playerMesh.rotation.x = Math.cos(walkTimer * 2) * 0.03;
                     }
-                } else if (playerMesh && (!mixer || animationsMap.size === 0)) {
-                    playerMesh.rotation.z = THREE.MathUtils.lerp(playerMesh.rotation.z, 0, 0.1);
-                    playerMesh.rotation.x = THREE.MathUtils.lerp(playerMesh.rotation.x, 0, 0.1);
                 }
 
-                // Simple gravity floor check
-                const groundY = 0.0;
-                
+                // --- ACCURATE GROUND & RAYCAST COLLISION ---
+                downRaycaster.set(new THREE.Vector3(playerGroup.position.x, playerGroup.position.y + 1.5, playerGroup.position.z), downVector);
+                const groundIntersects = downRaycaster.intersectObjects(mapObjects, true);
+
+                let currentGroundY = -50; // ??????? ??? ??? ?? ??????
+                if (groundIntersects.length > 0) {
+                    currentGroundY = groundIntersects[0].point.y;
+                }
+
                 velocityY += GRAVITY * delta;
                 playerGroup.position.y += velocityY * delta;
 
-                if (playerGroup.position.y <= groundY) {
-                    playerGroup.position.y = groundY;
+                // ??????? ?? ??????? ??????? ????? ????
+                if (playerGroup.position.y <= currentGroundY + 0.05) {
+                    playerGroup.position.y = currentGroundY + 0.05;
                     velocityY = 0;
                     isGrounded = true;
+                } else {
+                    isGrounded = false;
                 }
             }
 
