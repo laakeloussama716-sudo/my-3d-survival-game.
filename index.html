@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Survival Game Engine - New Terrain</title>
+    <title>3D Survival Game Engine - Fixed Map Scale</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -231,9 +231,8 @@
         // --- 1. SCENE SETUP & OPTIMIZATION ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x7ec0ee);
-        scene.fog = new THREE.FogExp2(0x7ec0ee, 0.006);
 
-        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 800);
+        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 2000);
         
         const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -241,11 +240,11 @@
         renderer.shadowMap.enabled = false; 
         document.body.appendChild(renderer.domElement);
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
         scene.add(ambientLight);
 
-        const sun = new THREE.DirectionalLight(0xfff5ea, 0.8);
-        sun.position.set(50, 100, 50);
+        const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+        sun.position.set(100, 300, 100);
         scene.add(sun);
 
         // --- 2. GLOBAL ASSETS ---
@@ -259,20 +258,35 @@
 
         const loadingSub = document.getElementById('loading-sub');
 
-        // --- 3. LOADING NEW MAP: empty_terrain.glb ---
+        // --- 3. LOADING NEW MAP WITH AUTO BOUNDING SCALE ---
         loader.load('empty_terrain.glb',
             (gltf) => {
                 const terrain = gltf.scene;
+                
+                // ???? ????? ??????? ?????? ??????? ????????
+                const box = new THREE.Box3().setFromObject(terrain);
+                const size = box.getSize(new THREE.Vector3());
+                
+                // ????? ??????? ??? ???? ?????
+                if (size.x < 50 || size.z < 50) {
+                    terrain.scale.set(10, 10, 10);
+                }
+
                 terrain.position.set(0, 0, 0);
 
                 terrain.traverse((child) => {
                     if (child.isMesh) {
+                        child.material.side = THREE.DoubleSide; // ???? ?????? ?? ???????
                         terrainMeshes.push(child);
                     }
                 });
 
                 scene.add(terrain);
                 isTerrainLoaded = true;
+
+                // ????? ???? ?????? ???????? ??? ??????? ??????
+                const spawnY = getGroundHeight(0, 0);
+                playerGroup.position.set(0, spawnY + 2.0, 0);
 
                 document.getElementById('loading-title').innerText = "CLICK TO PLAY";
                 loadingSub.innerText = "WASD = Move | Space = Jump | Left Click = Mine Resources | F3 = Toggle Camera";
@@ -306,21 +320,19 @@
         const terrainRaycaster = new THREE.Raycaster();
         function getGroundHeight(x, z) {
             if (terrainMeshes.length === 0) return 0;
-            terrainRaycaster.set(new THREE.Vector3(x, 500, z), new THREE.Vector3(0, -1, 0));
+            terrainRaycaster.set(new THREE.Vector3(x, 1000, z), new THREE.Vector3(0, -1, 0));
             const hits = terrainRaycaster.intersectObjects(terrainMeshes, true);
             if (hits.length > 0) return hits[0].point.y;
             return 0;
         }
 
-        // Spawn 3 Trees and 3 Rocks near player spawn
         function spawnInitialTestResources() {
             if (!loadedTreeModel || !loadedRockModel || breakableObjects.length > 0) return;
 
-            // 3 Large Test Trees
             const treePositions = [
-                { x: 8, z: 8 },
-                { x: -10, z: 12 },
-                { x: 14, z: -10 }
+                { x: 10, z: 10 },
+                { x: -12, z: 15 },
+                { x: 18, z: -12 }
             ];
 
             treePositions.forEach(pos => {
@@ -328,7 +340,7 @@
                 const tree = loadedTreeModel.clone(true);
                 tree.position.set(pos.x, y, pos.z);
                 
-                const scale = 3.8;
+                const scale = 4.0;
                 tree.scale.set(scale, scale, scale);
 
                 tree.traverse((child) => {
@@ -340,19 +352,18 @@
                 scene.add(tree);
             });
 
-            // 3 Large Test Rocks
             const rockPositions = [
-                { x: 6, z: -8 },
-                { x: -12, z: -10 },
-                { x: -8, z: 14 }
+                { x: 8, z: -10 },
+                { x: -15, z: -12 },
+                { x: -10, z: 18 }
             ];
 
             rockPositions.forEach(pos => {
                 const y = getGroundHeight(pos.x, pos.z);
                 const rock = loadedRockModel.clone(true);
-                rock.position.set(pos.x, y + 0.8, pos.z); 
+                rock.position.set(pos.x, y + 0.5, pos.z); 
                 
-                const scale = 2.2;
+                const scale = 2.5;
                 rock.scale.set(scale, scale, scale);
 
                 rock.traverse((child) => {
@@ -367,7 +378,7 @@
 
         // --- 4. PLAYER & CAMERA SYSTEM ---
         const playerGroup = new THREE.Group();
-        playerGroup.position.set(0, 15, 0); 
+        playerGroup.position.set(0, 10, 0); 
         scene.add(playerGroup);
 
         let playerMesh = null;
@@ -378,7 +389,6 @@
         loader.load('player.glb', (gltf) => {
             playerMesh = gltf.scene;
             playerMesh.position.y = 0;
-
             playerGroup.add(playerMesh);
 
             if (gltf.animations && gltf.animations.length > 0) {
@@ -496,13 +506,6 @@
             renderer.setPixelRatio(window.devicePixelRatio * Math.max(0.2, e.target.value / 100));
         });
 
-        fogSlider.addEventListener('input', (e) => {
-            const val = parseInt(e.target.value);
-            if (val === 1) { fogValue.innerText = "Low"; scene.fog.density = 0.003; }
-            else if (val === 2) { fogValue.innerText = "Medium"; scene.fog.density = 0.006; }
-            else { fogValue.innerText = "High (Max FPS)"; scene.fog.density = 0.012; }
-        });
-
         volSlider.addEventListener('input', (e) => volValue.innerText = e.target.value + '%');
         fpsToggle.addEventListener('change', (e) => fpsCounter.style.display = e.target.checked ? 'block' : 'none');
 
@@ -592,7 +595,7 @@
                 }
 
                 downRaycaster.set(
-                    new THREE.Vector3(playerGroup.position.x, playerGroup.position.y + 3.0, playerGroup.position.z),
+                    new THREE.Vector3(playerGroup.position.x, playerGroup.position.y + 5.0, playerGroup.position.z),
                     new THREE.Vector3(0, -1, 0)
                 );
                 
