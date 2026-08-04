@@ -1,78 +1,68 @@
 <!DOCTYPE html>
-<html lang="ar">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Survival Game - Three.js</title>
+    <title>3D Survival Game</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
             background-color: #000;
-            font-family: sans-serif;
+            font-family: Arial, sans-serif;
         }
         #ui {
             position: absolute;
-            top: 20px;
-            left: 20px;
-            color: white;
-            background: rgba(0, 0, 0, 0.5);
-            padding: 10px 15px;
+            top: 15px;
+            left: 15px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 12px 18px;
             border-radius: 8px;
             pointer-events: none;
-            direction: rtl;
+            font-size: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
     </style>
-    <!-- ??????? ????? Three.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Three.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 </head>
 <body>
 
     <div id="ui">
-        <b>???? ??????:</b><br>
-        W / A / S / D ?? ?????? : ?????? ????????<br>
-        ???????: ???? (??? ??? ??????)
+        <b>Controls:</b><br>
+        W / A / S / D or Arrows : Move & Rotate<br>
+        Camera: 3rd Person View
     </div>
 
     <script>
-        // ==========================================
-        // 1. SETUP SCENE, CAMERA, RENDERER & FOG
-        // ==========================================
+        // 1. SCENE SETUP & FOG
         const scene = new THREE.Scene();
-
-        // ??? ?????? ???????
         const skyColor = new THREE.Color(0x87ceeb);
         scene.background = skyColor;
-
-        // ????? ???? ?????? ?????? ???????? (???? ?????? ????? ?? 30? ????? ?? ??? ??? 120?)
         scene.fog = new THREE.Fog(skyColor, 30, 120);
 
         const camera = new THREE.PerspectiveCamera(
             75,
             window.innerWidth / window.innerHeight,
-            0.1,  // Near clipping ???? ???? ???????? ?? ??? ??????
-            130   // Far clipping ?????? ?? ????? ?????? ???? ???? ???????? ???????
+            0.1,
+            130
         );
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         document.body.appendChild(renderer.domElement);
 
-        // ????? ??????
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        // LIGHTS
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
         scene.add(ambientLight);
         const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
         dirLight.position.set(50, 100, 50);
         scene.add(dirLight);
 
-        // ==========================================
-        // 2. TERRAIN & COLLIDERS SETUP
-        // ==========================================
-        const collidableObjects = []; // ??????? ????????
-        let terrainMesh = null;       // ???? ?????? ??????
-
-        // ????? ????? ??????? ?????
+        // 2. TERRAIN
+        const collidableObjects = [];
         const terrainGeo = new THREE.PlaneGeometry(300, 300, 64, 64);
         terrainGeo.rotateX(-Math.PI / 2);
 
@@ -80,34 +70,21 @@
         for (let i = 0; i < posAttr.count; i++) {
             const x = posAttr.getX(i);
             const z = posAttr.getZ(i);
-            // ?????? ???? ???? ????????
             const y = Math.sin(x * 0.05) * Math.cos(z * 0.05) * 8 + Math.sin(x * 0.02) * 5;
             posAttr.setY(i, y);
         }
         terrainGeo.computeVertexNormals();
 
         const terrainMat = new THREE.MeshStandardMaterial({ color: 0x3b7a57, roughness: 0.8 });
-        terrainMesh = new THREE.Mesh(terrainGeo, terrainMat);
+        const terrainMesh = new THREE.Mesh(terrainGeo, terrainMat);
         scene.add(terrainMesh);
 
-        // ==========================================
-        // 3. RAYCASTING & TERRAIN DETECTION (??? ?????? ??? ??????)
-        // ==========================================
+        // 3. RAYCASTING
         const raycaster = new THREE.Raycaster();
         const downVector = new THREE.Vector3(0, -1, 0);
 
-        function getTerrainHeightAt(x, z) {
-            raycaster.set(new THREE.Vector3(x, 100, z), downVector);
-            const hits = raycaster.intersectObject(terrainMesh);
-            if (hits.length > 0) {
-                return hits[0].point.y;
-            }
-            return 0;
-        }
-
-        // ??? ???????? ?? 5 ???? ??? ?????? ???? ?????? ??? ????????? ??????
         function getAccurateGroundY(playerPos) {
-            const checkOffset = 0.4; // ????? ??? ??????
+            const checkOffset = 0.4;
             const points = [
                 playerPos,
                 new THREE.Vector3(playerPos.x + checkOffset, playerPos.y, playerPos.z),
@@ -131,32 +108,25 @@
             return highestY !== -Infinity ? highestY : 0;
         }
 
-        // ==========================================
-        // 4. SPAWN LARGE TREES & ROCKS
-        // ==========================================
+        // 4. TREES & ROCKS
         function createTree(x, z) {
             const group = new THREE.Group();
             
-            // ??? ??????
             const trunkGeo = new THREE.CylinderGeometry(0.6, 0.8, 5, 8);
             const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5c4033 });
             const trunk = new THREE.Mesh(trunkGeo, trunkMat);
             trunk.position.y = 2.5;
             group.add(trunk);
 
-            // ????? ??????
             const leavesGeo = new THREE.ConeGeometry(3.5, 7, 8);
             const leavesMat = new THREE.MeshStandardMaterial({ color: 0x1e4d2b });
             const leaves = new THREE.Mesh(leavesGeo, leavesMat);
             leaves.position.y = 6;
             group.add(leaves);
 
-            const terrainY = getTerrainHeightAt(x, z);
+            const terrainY = getAccurateGroundY(new THREE.Vector3(x, 10, z));
             group.position.set(x, terrainY, z);
-
-            // ????? ??? ??????
             group.scale.set(2.5, 2.5, 2.5);
-            group.updateMatrixWorld(true);
 
             scene.add(group);
             collidableObjects.push(group);
@@ -167,36 +137,28 @@
             const mat = new THREE.MeshStandardMaterial({ color: 0x708090, roughness: 0.9 });
             const rock = new THREE.Mesh(geo, mat);
 
-            const terrainY = getTerrainHeightAt(x, z);
+            const terrainY = getAccurateGroundY(new THREE.Vector3(x, 10, z));
             rock.position.set(x, terrainY + 1, z);
-
-            // ????? ??? ?????
             rock.scale.set(2.2, 2.2, 2.2);
-            rock.updateMatrixWorld(true);
 
             scene.add(rock);
             collidableObjects.push(rock);
         }
 
-        // ????? ?????? ??????? ???????? ???????
-        for (let i = 0; i < 30; i++) {
+        for (let i = 0; i < 25; i++) {
             createTree((Math.random() - 0.5) * 200, (Math.random() - 0.5) * 200);
             createRock((Math.random() - 0.5) * 200, (Math.random() - 0.5) * 200);
         }
 
-        // ==========================================
-        // 5. PLAYER CREATION
-        // ==========================================
+        // 5. PLAYER
         const playerGroup = new THREE.Group();
 
-        // ???? ?????
         const bodyGeo = new THREE.CapsuleGeometry(0.5, 1.2, 4, 8);
         const bodyMat = new THREE.MeshStandardMaterial({ color: 0x0055ff });
         const playerMesh = new THREE.Mesh(bodyGeo, bodyMat);
         playerMesh.position.y = 1.1;
         playerGroup.add(playerMesh);
 
-        // ????? ??? ?????? ?????? ???????
         const faceGeo = new THREE.BoxGeometry(0.3, 0.2, 0.3);
         const faceMat = new THREE.MeshStandardMaterial({ color: 0xffcc00 });
         const face = new THREE.Mesh(faceGeo, faceMat);
@@ -205,47 +167,33 @@
 
         scene.add(playerGroup);
 
-        const player = {
-            speed: 14,
-            velocityY: 0
-        };
+        const player = { speed: 14 };
 
-        // ==========================================
-        // 6. MOVEMENT & CONTROLS
-        // ==========================================
+        // 6. CONTROLS
         const keys = {};
         window.addEventListener('keydown', (e) => keys[e.code] = true);
         window.addEventListener('keyup', (e) => keys[e.code] = false);
 
-        // ==========================================
-        // 7. THIRD-PERSON CAMERA WITH SMOOTH MOTION
-        // ==========================================
-        const cameraOffset = new THREE.Vector3(0, 2.5, -4.5); // ??? ????? ??? ??????
+        // 7. CAMERA
+        const cameraOffset = new THREE.Vector3(0, 2.5, -4.5);
         const targetCameraPos = new THREE.Vector3();
 
         function updateCamera(delta) {
-            // ???? ?????? ???????? ??? ??? ?????? ??????
             const relativeOffset = cameraOffset.clone().applyQuaternion(playerGroup.quaternion);
             targetCameraPos.copy(playerGroup.position).add(relativeOffset);
-
-            // ????? ???????? ?????? (Lerp) ???? ???????? ??????? ?????
             camera.position.lerp(targetCameraPos, delta * 8.0);
 
-            // ??? ???????? ???? ??? ????? ?????/?????
             const lookTarget = playerGroup.position.clone().add(new THREE.Vector3(0, 1.6, 0));
             camera.lookAt(lookTarget);
         }
 
-        // ==========================================
-        // 8. MAIN GAME LOOP
-        // ==========================================
+        // 8. GAME LOOP
         const clock = new THREE.Clock();
 
         function animate() {
             requestAnimationFrame(animate);
             const delta = clock.getDelta();
 
-            // 1. ??????? ???????
             if (keys['KeyA'] || keys['ArrowLeft']) playerGroup.rotation.y += 2.8 * delta;
             if (keys['KeyD'] || keys['ArrowRight']) playerGroup.rotation.y -= 2.8 * delta;
 
@@ -256,41 +204,31 @@
             moveDirection.normalize();
             moveDirection.applyQuaternion(playerGroup.quaternion);
 
-            // ????? ??????
             playerGroup.position.x += moveDirection.x * player.speed * delta;
             playerGroup.position.z += moveDirection.z * player.speed * delta;
 
-            // 2. ????? ???????? ?? ????????? ??????? (???? ???? ???? ????????)
             const groundY = getAccurateGroundY(playerGroup.position);
             
             if (playerGroup.position.y < groundY) {
-                // ??? ???? ???????? ?? ??????
                 playerGroup.position.y = groundY;
-                player.velocityY = 0;
             } else {
-                // ????? ?????? ??? ????????
                 playerGroup.position.y = THREE.MathUtils.lerp(playerGroup.position.y, groundY, delta * 15.0);
             }
 
-            // ???? ???? Fallback ??? ??? ???? ??????? ??? ???
             if (playerGroup.position.y < -20) {
                 playerGroup.position.set(0, 10, 0);
             }
 
-            // 3. ????? ???????? ?????? ??? ??? ??????
             updateCamera(delta);
-
             renderer.render(scene, camera);
         }
 
-        // ????? ??? ??? ?????? ??? ???????/???????
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        // ??? ???????
         animate();
     </script>
 </body>
