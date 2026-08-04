@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Survival Game Engine - Fixed Terrain & Collision</title>
+    <title>3D Survival Game - Optimized Terrain</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -17,10 +17,8 @@
 
         #crosshair {
             position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 8px;
-            height: 8px;
+            top: 50%; left: 50%;
+            width: 8px; height: 8px;
             background: rgba(255, 255, 255, 0.9);
             border-radius: 50%;
             transform: translate(-50%, -50%);
@@ -31,8 +29,7 @@
 
         #ui {
             position: absolute;
-            top: 15px;
-            left: 15px;
+            top: 15px; left: 15px;
             color: #ffffff;
             z-index: 10;
             pointer-events: none;
@@ -42,8 +39,7 @@
 
         #fps-counter {
             position: absolute;
-            top: 15px;
-            right: 15px;
+            top: 15px; right: 15px;
             color: #00ffcc;
             font-family: monospace;
             font-size: 15px;
@@ -51,18 +47,15 @@
             background: rgba(0, 0, 0, 0.7);
             padding: 6px 12px;
             border-radius: 4px;
-            display: none;
             z-index: 10;
             border: 1px solid #00ffcc;
         }
 
         #hotbar {
             position: absolute;
-            bottom: 20px;
-            left: 50%;
+            bottom: 20px; left: 50%;
             transform: translateX(-50%);
-            display: flex;
-            gap: 10px;
+            display: flex; gap: 10px;
             background: rgba(10, 10, 10, 0.85);
             padding: 8px;
             border-radius: 8px;
@@ -70,8 +63,7 @@
             z-index: 10;
         }
         .hotbar-slot {
-            width: 52px;
-            height: 52px;
+            width: 52px; height: 52px;
             background: rgba(255, 255, 255, 0.05);
             border: 2px solid #555;
             border-radius: 6px;
@@ -171,7 +163,7 @@
 <body>
 
     <div id="crosshair"></div>
-    <div id="fps-counter">FPS: 0</div>
+    <div id="fps-counter">FPS: 60</div>
 
     <div id="ui">
         <h2>3D Survival Engine</h2>
@@ -206,59 +198,45 @@
             </div>
 
             <div class="setting-row">
-                <label>Fog View Distance: <span id="fog-value">Medium</span></label>
-                <input type="range" id="fog-slider" min="1" max="3" value="2">
-            </div>
-
-            <div class="setting-row">
                 <label>Audio Volume: <span id="vol-value">80%</span></label>
                 <input type="range" id="vol-slider" min="0" max="100" value="80">
             </div>
 
             <div class="setting-checkbox">
                 <span>Show FPS Counter</span>
-                <input type="checkbox" id="fps-toggle">
+                <input type="checkbox" id="fps-toggle" checked>
             </div>
         </div>
     </div>
 
     <div id="instructions">
         <h1 id="loading-title">LOADING WORLD...</h1>
-        <p id="loading-sub">Loading terrain map...</p>
+        <p id="loading-sub">Loading empty_terrain.glb...</p>
     </div>
 
     <script>
-        // --- 1. SCENE SETUP ---
+        // --- 1. OPTIMIZED RENDERER & SCENE ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x7ec0ee);
 
-        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 2000);
+        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
         
         const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.0));
-        renderer.shadowMap.enabled = false; 
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.0)); // ????? ??? Ratio ????? ???? ???? ???
+        renderer.shadowMap.enabled = false;
         document.body.appendChild(renderer.domElement);
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 1.3);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
         scene.add(ambientLight);
 
-        const sun = new THREE.DirectionalLight(0xffffff, 1.0);
-        sun.position.set(100, 300, 100);
+        const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+        sun.position.set(50, 200, 50);
         scene.add(sun);
 
-        // --- 2. FALLBACK GROUND PLANE (???? ???? ????? ??????? ??????) ---
-        const groundGeo = new THREE.PlaneGeometry(500, 500);
-        const groundMat = new THREE.MeshStandardMaterial({ color: 0x3d7a37, side: THREE.DoubleSide });
-        const baseGround = new THREE.Mesh(groundGeo, groundMat);
-        baseGround.rotation.x = -Math.PI / 2;
-        baseGround.position.y = 0;
-        scene.add(baseGround);
-
-        const terrainMeshes = [baseGround]; // ????? ??????? ???????? ?????? ???????
-
-        // --- 3. GLOBAL ASSETS ---
+        // --- 2. TERRAIN SYSTEM ---
         const loader = new THREE.GLTFLoader();
+        const terrainMeshes = [];
         const breakableObjects = [];
 
         let isTerrainLoaded = false;
@@ -267,15 +245,29 @@
 
         const loadingSub = document.getElementById('loading-sub');
 
-        // --- 4. LOADING MAP ---
+        // ????? ?????? ??????? ???????? ?????? ????? ???? ??????
         loader.load('empty_terrain.glb',
             (gltf) => {
                 const terrain = gltf.scene;
-                terrain.position.set(0, 0.05, 0); // ??? ??????? ?????? ??? ????? ????????
+
+                // 1. ??????? ?????? ?????? ??????? ????????
+                const box = new THREE.Box3().setFromObject(terrain);
+                const center = box.getCenter(new THREE.Vector3());
+                const size = box.getSize(new THREE.Vector3());
+
+                terrain.position.x += (terrain.position.x - center.x);
+                terrain.position.z += (terrain.position.z - center.z);
+                terrain.position.y -= box.min.y; // ?????? ????? ?? ????? ?????? ???????
+
+                // ????? ??????? ??? ???? ????? ???? ???? ????
+                if (size.x < 100) {
+                    const scaleFactor = 100 / size.x;
+                    terrain.scale.set(scaleFactor, scaleFactor, scaleFactor);
+                }
 
                 terrain.traverse((child) => {
                     if (child.isMesh) {
-                        child.material.side = THREE.DoubleSide;
+                        child.material.side = THREE.FrontSide; // ??? ?????? ?????? ??????
                         terrainMeshes.push(child);
                     }
                 });
@@ -283,8 +275,9 @@
                 scene.add(terrain);
                 isTerrainLoaded = true;
 
-                // ??? ?????? ??? ???????
-                playerGroup.position.set(0, 2.0, 0);
+                // ????? ???? ?????? ???? ??? ??????? ??????
+                const spawnY = getGroundHeight(0, 0);
+                playerGroup.position.set(0, spawnY + 2.0, 0);
 
                 document.getElementById('loading-title').innerText = "CLICK TO PLAY";
                 loadingSub.innerText = "WASD = Move | Space = Jump | Left Click = Mine Resources | F3 = Toggle Camera";
@@ -299,10 +292,7 @@
             },
             (error) => {
                 console.error("Terrain Load Error:", error);
-                loadingSub.innerText = "Loaded Base World!";
-                isTerrainLoaded = true;
-                document.getElementById('loading-title').innerText = "CLICK TO PLAY";
-                loadBackgroundProps();
+                loadingSub.innerText = "Error loading map file!";
             }
         );
 
@@ -310,17 +300,18 @@
             loader.load('pine_tree.glb', (gltfTree) => {
                 loadedTreeModel = gltfTree.scene;
                 spawnInitialTestResources();
-            }, undefined, (err) => console.warn("pine_tree.glb failed to load", err));
+            });
 
             loader.load('crystal_stone_rock.glb', (gltfRock) => {
                 loadedRockModel = gltfRock.scene;
                 spawnInitialTestResources();
-            }, undefined, (err) => console.warn("crystal_stone_rock.glb failed to load", err));
+            });
         }
 
         const terrainRaycaster = new THREE.Raycaster();
         function getGroundHeight(x, z) {
-            terrainRaycaster.set(new THREE.Vector3(x, 500, z), new THREE.Vector3(0, -1, 0));
+            if (terrainMeshes.length === 0) return 0;
+            terrainRaycaster.set(new THREE.Vector3(x, 1000, z), new THREE.Vector3(0, -1, 0));
             const hits = terrainRaycaster.intersectObjects(terrainMeshes, true);
             if (hits.length > 0) return hits[0].point.y;
             return 0;
@@ -329,19 +320,12 @@
         function spawnInitialTestResources() {
             if (!loadedTreeModel || !loadedRockModel || breakableObjects.length > 0) return;
 
-            const treePositions = [
-                { x: 10, z: 10 },
-                { x: -12, z: 15 },
-                { x: 18, z: -12 }
-            ];
-
+            const treePositions = [{ x: 10, z: 10 }, { x: -12, z: 15 }, { x: 18, z: -12 }];
             treePositions.forEach(pos => {
                 const y = getGroundHeight(pos.x, pos.z);
                 const tree = loadedTreeModel.clone(true);
                 tree.position.set(pos.x, y, pos.z);
-                
-                const scale = 3.0;
-                tree.scale.set(scale, scale, scale);
+                tree.scale.set(3.5, 3.5, 3.5);
 
                 tree.traverse((child) => {
                     if (child.isMesh) {
@@ -352,19 +336,12 @@
                 scene.add(tree);
             });
 
-            const rockPositions = [
-                { x: 8, z: -10 },
-                { x: -15, z: -12 },
-                { x: -10, z: 18 }
-            ];
-
+            const rockPositions = [{ x: 8, z: -10 }, { x: -15, z: -12 }, { x: -10, z: 18 }];
             rockPositions.forEach(pos => {
                 const y = getGroundHeight(pos.x, pos.z);
                 const rock = loadedRockModel.clone(true);
                 rock.position.set(pos.x, y, pos.z); 
-                
-                const scale = 2.0;
-                rock.scale.set(scale, scale, scale);
+                rock.scale.set(2.2, 2.2, 2.2);
 
                 rock.traverse((child) => {
                     if (child.isMesh) {
@@ -376,9 +353,9 @@
             });
         }
 
-        // --- 5. PLAYER & CAMERA SYSTEM ---
+        // --- 3. PLAYER & CAMERA CONTROLS ---
         const playerGroup = new THREE.Group();
-        playerGroup.position.set(0, 2, 0); 
+        playerGroup.position.set(0, 5, 0); 
         scene.add(playerGroup);
 
         let playerMesh = null;
@@ -388,7 +365,6 @@
 
         loader.load('player.glb', (gltf) => {
             playerMesh = gltf.scene;
-            playerMesh.position.y = 0;
             playerGroup.add(playerMesh);
 
             if (gltf.animations && gltf.animations.length > 0) {
@@ -430,7 +406,7 @@
         const mineRaycaster = new THREE.Raycaster();
 
         document.addEventListener('mousedown', (e) => {
-            if (!isLocked || isInventoryOpen || isSettingsOpen || e.button !== 0) return;
+            if (!isLocked || isInventoryOpen || isSettingsOpen || e.button !== 0 || !isTerrainLoaded) return;
 
             mineRaycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
             const intersects = mineRaycaster.intersectObjects(breakableObjects, true);
@@ -453,7 +429,7 @@
             }
         });
 
-        // --- 6. UI & INPUT CONTROLS ---
+        // --- 4. UI & INTERACTION ---
         let isLocked = false;
         let isInventoryOpen = false;
         let isSettingsOpen = false;
@@ -463,7 +439,7 @@
         const settingsOverlay = document.getElementById('settings-overlay');
 
         instructions.addEventListener('click', () => {
-            if (!isInventoryOpen && !isSettingsOpen) {
+            if (!isInventoryOpen && !isSettingsOpen && isTerrainLoaded) {
                 document.body.requestPointerLock();
             }
         });
@@ -559,7 +535,7 @@
 
         document.addEventListener('keyup', (e) => keys[e.code] = false);
 
-        // --- 7. ANIMATION & PHYSICS LOOP ---
+        // --- 5. GAME LOOP ---
         let clock = new THREE.Clock();
         let frameCount = 0;
         let lastTime = performance.now();
@@ -577,7 +553,7 @@
             const delta = Math.min(clock.getDelta(), 0.1);
             if (mixer) mixer.update(delta);
 
-            if (isLocked && !isInventoryOpen && !isSettingsOpen) {
+            if (isLocked && !isInventoryOpen && !isSettingsOpen && isTerrainLoaded) {
                 const moveSpeed = 10.0 * delta;
                 const moveVector = new THREE.Vector3();
 
@@ -612,13 +588,6 @@
                 } else {
                     velocityY += -28.0 * delta;
                     playerGroup.position.y += velocityY * delta;
-
-                    // ????? ?? ?????? ??????
-                    if (playerGroup.position.y < 0) {
-                        playerGroup.position.y = 0.05;
-                        velocityY = 0;
-                        isGrounded = true;
-                    }
                 }
             }
 
