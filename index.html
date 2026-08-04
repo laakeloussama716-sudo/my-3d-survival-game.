@@ -3,11 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Survival Game Engine - High Performance</title>
+    <title>3D Survival Game Engine - Max FPS</title>
     <style>
-        * {
-            box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
         body {
             margin: 0;
             overflow: hidden;
@@ -39,16 +37,8 @@
             z-index: 10;
             pointer-events: none;
         }
-        #ui h2 {
-            margin: 0 0 5px 0;
-            font-size: 20px;
-            color: #00ffcc;
-        }
-        #ui p {
-            margin: 0;
-            font-size: 13px;
-            opacity: 0.9;
-        }
+        #ui h2 { margin: 0 0 5px 0; font-size: 20px; color: #00ffcc; }
+        #ui p { margin: 0; font-size: 13px; opacity: 0.9; }
 
         #fps-counter {
             position: absolute;
@@ -73,7 +63,7 @@
             transform: translateX(-50%);
             display: flex;
             gap: 10px;
-            background: rgba(10, 10, 10, 0.8);
+            background: rgba(10, 10, 10, 0.85);
             padding: 8px;
             border-radius: 8px;
             border: 1px solid #444;
@@ -88,15 +78,13 @@
         }
         .hotbar-slot.active {
             border-color: #00ffcc;
-            background: rgba(0, 255, 204, 0.1);
+            background: rgba(0, 255, 204, 0.15);
         }
 
         #inventory-overlay, #settings-overlay {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
             background: rgba(0, 0, 0, 0.8);
             display: none;
             justify-content: center;
@@ -112,18 +100,14 @@
         }
 
         #inventory-box {
-            width: 680px;
-            height: 420px;
-            display: flex;
-            padding: 20px;
-            gap: 20px;
+            width: 680px; height: 420px;
+            display: flex; padding: 20px; gap: 20px;
         }
         #slots-container {
             display: grid;
             grid-template-columns: repeat(5, 1fr);
             grid-template-rows: repeat(3, 1fr);
-            gap: 10px;
-            flex: 2;
+            gap: 10px; flex: 2;
         }
         .inv-slot {
             background: rgba(255, 255, 255, 0.04);
@@ -131,9 +115,8 @@
             border-radius: 6px;
             cursor: pointer;
         }
-        .inv-slot:hover {
-            border-color: #00ffcc;
-        }
+        .inv-slot:hover { border-color: #00ffcc; }
+        
         #crafting-space {
             flex: 1;
             background: rgba(0, 0, 0, 0.4);
@@ -150,49 +133,23 @@
         }
 
         #settings-box {
-            width: 400px;
-            padding: 25px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
+            width: 400px; padding: 25px;
+            display: flex; flex-direction: column; gap: 20px;
         }
         #settings-box h2 {
-            margin: 0 0 10px 0;
-            text-align: center;
-            border-bottom: 1px solid #334455;
-            padding-bottom: 10px;
+            margin: 0 0 10px 0; text-align: center;
+            border-bottom: 1px solid #334455; padding-bottom: 10px;
             color: #00ffcc;
         }
-        .setting-row {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-        .setting-row label {
-            font-size: 14px;
-            display: flex;
-            justify-content: space-between;
-            color: #dddddd;
-        }
-        .setting-row input[type="range"] {
-            width: 100%;
-            cursor: pointer;
-        }
-        .setting-checkbox {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            cursor: pointer;
-            color: #dddddd;
-            font-size: 14px;
-        }
+        .setting-row { display: flex; flex-direction: column; gap: 6px; }
+        .setting-row label { font-size: 14px; display: flex; justify-content: space-between; color: #dddddd; }
+        .setting-row input[type="range"] { width: 100%; cursor: pointer; }
+        .setting-checkbox { display: flex; align-items: center; justify-content: space-between; cursor: pointer; color: #dddddd; font-size: 14px; }
 
         #instructions {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
             color: white;
             background: rgba(10, 10, 10, 0.9);
             display: flex;
@@ -204,17 +161,8 @@
             text-align: center;
             padding: 20px;
         }
-        #instructions h1 {
-            font-size: 38px;
-            margin-bottom: 10px;
-            color: #00ffcc;
-        }
-        #instructions p {
-            font-size: 15px;
-            color: #cccccc;
-            max-width: 580px;
-            line-height: 1.5;
-        }
+        #instructions h1 { font-size: 38px; margin-bottom: 10px; color: #00ffcc; }
+        #instructions p { font-size: 15px; color: #cccccc; max-width: 580px; line-height: 1.5; }
     </style>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -276,36 +224,32 @@
 
     <div id="instructions">
         <h1 id="loading-title">LOADING WORLD...</h1>
-        <p id="loading-sub">Preparing map terrain and placing natural resources...</p>
+        <p id="loading-sub">Preparing map terrain and placing test resources...</p>
     </div>
 
     <script>
-        // --- 1. SCENE SETUP & PERFORMANCE CONFIGURATION ---
+        // --- 1. SCENE SETUP & OPTIMIZATION ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x7ec0ee);
-        scene.fog = new THREE.FogExp2(0x7ec0ee, 0.007);
+        scene.fog = new THREE.FogExp2(0x7ec0ee, 0.006);
 
         const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 800);
         
+        // High FPS Renderer Configuration
         const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.BasicShadowMap;
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.0)); // Locked for stable FPS
+        renderer.shadowMap.enabled = false; // Disabled shadow maps for maximum FPS boost
         document.body.appendChild(renderer.domElement);
 
-        // Optimized Simple Lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
         scene.add(ambientLight);
 
-        const sun = new THREE.DirectionalLight(0xfff5ea, 0.9);
-        sun.position.set(40, 80, 30);
-        sun.castShadow = true;
-        sun.shadow.mapSize.width = 512;
-        sun.shadow.mapSize.height = 512;
+        const sun = new THREE.DirectionalLight(0xfff5ea, 0.8);
+        sun.position.set(50, 100, 50);
         scene.add(sun);
 
-        // --- 2. GLOBAL ASSETS MANAGEMENT ---
+        // --- 2. GLOBAL ASSETS ---
         const loader = new THREE.GLTFLoader();
         const terrainMeshes = [];
         const breakableObjects = [];
@@ -316,22 +260,15 @@
 
         const loadingSub = document.getElementById('loading-sub');
 
-        // --- 3. TERRAIN LOADING ---
-        loader.load('tabletop_terrain.glb',
+        // --- 3. LOADING EMPTY TERRAIN MAP ---
+        loader.load('empty_terrain.glb',
             (gltf) => {
                 const terrain = gltf.scene;
                 terrain.position.set(0, 0, 0);
 
                 terrain.traverse((child) => {
                     if (child.isMesh) {
-                        const name = child.name.toLowerCase();
-                        if (name.includes('tree') || name.includes('rock') || name.includes('foliage') ||
-                            name.includes('stone') || name.includes('wood') || name.includes('plant') || name.includes('bush')) {
-                            child.visible = false;
-                        } else {
-                            child.receiveShadow = true;
-                            terrainMeshes.push(child);
-                        }
+                        terrainMeshes.push(child);
                     }
                 });
 
@@ -346,123 +283,105 @@
             (xhr) => {
                 if (xhr.lengthComputable) {
                     const percent = Math.round((xhr.loaded / xhr.total) * 100);
-                    loadingSub.innerText = `Loading Map Terrain: ${percent}%`;
+                    loadingSub.innerText = `Loading empty_terrain.glb: ${percent}%`;
                 }
             },
             (error) => {
                 console.error("Terrain Load Error:", error);
-                loadingSub.innerText = "Error loading tabletop_terrain.glb file!";
+                loadingSub.innerText = "Error loading empty_terrain.glb file!";
             }
         );
 
         function loadBackgroundProps() {
             loader.load('pine_tree.glb', (gltfTree) => {
                 loadedTreeModel = gltfTree.scene;
-                spawnTrees();
+                spawnInitialTestResources();
             }, undefined, (err) => console.warn("pine_tree.glb failed to load", err));
 
             loader.load('crystal_stone_rock.glb', (gltfRock) => {
                 loadedRockModel = gltfRock.scene;
-                spawnRocks();
+                spawnInitialTestResources();
             }, undefined, (err) => console.warn("crystal_stone_rock.glb failed to load", err));
         }
 
         const terrainRaycaster = new THREE.Raycaster();
         function getGroundHeight(x, z) {
-            if (terrainMeshes.length === 0) return null;
+            if (terrainMeshes.length === 0) return 0;
             terrainRaycaster.set(new THREE.Vector3(x, 500, z), new THREE.Vector3(0, -1, 0));
             const hits = terrainRaycaster.intersectObjects(terrainMeshes, true);
             if (hits.length > 0) return hits[0].point.y;
-            return null;
+            return 0;
         }
 
-        function spawnTrees() {
-            if (!loadedTreeModel) return;
-            let treeCount = 0;
-            let attempts = 0;
+        // Spawn 3 Trees and 3 Rocks near player spawn
+        function spawnInitialTestResources() {
+            if (!loadedTreeModel || !loadedRockModel || breakableObjects.length > 0) return;
 
-            while (treeCount < 20 && attempts < 200) {
-                attempts++;
-                const x = (Math.random() - 0.5) * 120;
-                const z = (Math.random() - 0.5) * 120;
-                if (Math.abs(x) < 12 && Math.abs(z) < 12) continue;
+            // 3 Test Trees nearby with enlarged scale
+            const treePositions = [
+                { x: 8, z: 8 },
+                { x: -10, z: 12 },
+                { x: 14, z: -10 }
+            ];
 
-                const y = getGroundHeight(x, z);
-                if (y !== null) {
-                    const tree = loadedTreeModel.clone(true);
-                    tree.position.set(x, y, z);
-                    
-                    const scale = 0.6 + Math.random() * 0.3;
-                    tree.scale.set(scale, scale, scale);
-                    tree.rotation.y = Math.random() * Math.PI * 2;
+            treePositions.forEach(pos => {
+                const y = getGroundHeight(pos.x, pos.z);
+                const tree = loadedTreeModel.clone(true);
+                tree.position.set(pos.x, y, pos.z);
+                
+                // Enlarged scale for Trees (3.5 to 4.5)
+                const scale = 3.5 + Math.random() * 1.0;
+                tree.scale.set(scale, scale, scale);
 
-                    tree.traverse((child) => {
-                        if (child.isMesh) {
-                            child.castShadow = true;
-                            child.userData = { isTree: true, hp: 4, parentGroup: tree };
-                            breakableObjects.push(child);
-                        }
-                    });
+                tree.traverse((child) => {
+                    if (child.isMesh) {
+                        child.userData = { isTree: true, hp: 4, parentGroup: tree };
+                        breakableObjects.push(child);
+                    }
+                });
+                scene.add(tree);
+            });
 
-                    scene.add(tree);
-                    treeCount++;
-                }
-            }
-        }
+            // 3 Test Rocks nearby with enlarged scale and raised offset
+            const rockPositions = [
+                { x: 6, z: -8 },
+                { x: -12, z: -10 },
+                { x: -8, z: 14 }
+            ];
 
-        function spawnRocks() {
-            if (!loadedRockModel) return;
-            let rockCount = 0;
-            let attempts = 0;
+            rockPositions.forEach(pos => {
+                const y = getGroundHeight(pos.x, pos.z);
+                const rock = loadedRockModel.clone(true);
+                // Raised +0.8 Y-offset to prevent dipping into the ground
+                rock.position.set(pos.x, y + 0.8, pos.z);
+                
+                // Enlarged scale for Rocks (2.0 to 2.5)
+                const scale = 2.0 + Math.random() * 0.5;
+                rock.scale.set(scale, scale, scale);
 
-            while (rockCount < 14 && attempts < 200) {
-                attempts++;
-                const x = (Math.random() - 0.5) * 110;
-                const z = (Math.random() - 0.5) * 110;
-                if (Math.abs(x) < 12 && Math.abs(z) < 12) continue;
-
-                const y = getGroundHeight(x, z);
-                if (y !== null) {
-                    const rock = loadedRockModel.clone(true);
-                    rock.position.set(x, y + 0.2, z);
-                    
-                    const scale = 0.4 + Math.random() * 0.3;
-                    rock.scale.set(scale, scale, scale);
-                    rock.rotation.y = Math.random() * Math.PI * 2;
-
-                    rock.traverse((child) => {
-                        if (child.isMesh) {
-                            child.castShadow = true;
-                            child.userData = { isRock: true, hp: 6, parentGroup: rock };
-                            breakableObjects.push(child);
-                        }
-                    });
-
-                    scene.add(rock);
-                    rockCount++;
-                }
-            }
+                rock.traverse((child) => {
+                    if (child.isMesh) {
+                        child.userData = { isRock: true, hp: 6, parentGroup: rock };
+                        breakableObjects.push(child);
+                    }
+                });
+                scene.add(rock);
+            });
         }
 
         // --- 4. PLAYER & CAMERA SYSTEM ---
         const playerGroup = new THREE.Group();
-        playerGroup.position.set(0, 15, 0); // Elevated initial spawn height
+        playerGroup.position.set(0, 15, 0); // Elevated initial spawn
         scene.add(playerGroup);
 
         let playerMesh = null;
         let mixer = null;
         let animationsMap = new Map();
-        const PLAYER_HEIGHT_OFFSET = 1.6; // Raised offset to keep player above ground
+        const PLAYER_HEIGHT_OFFSET = 1.6;
 
         loader.load('player.glb', (gltf) => {
             playerMesh = gltf.scene;
             playerMesh.position.y = 0;
-            
-            playerMesh.traverse((child) => {
-                if (child.isMesh) {
-                    child.castShadow = true;
-                }
-            });
 
             playerGroup.add(playerMesh);
 
@@ -490,12 +409,14 @@
 
         function updatePerspective() {
             if (!isThirdPerson) {
+                // First Person Perspective
                 camera.position.set(0, PLAYER_HEIGHT_OFFSET, 0.1);
                 camera.rotation.set(0, 0, 0);
                 if (playerMesh) playerMesh.visible = false;
             } else {
-                camera.position.set(0, PLAYER_HEIGHT_OFFSET + 0.8, 3.5);
-                camera.rotation.set(-0.15, 0, 0);
+                // Third Person Perspective (Viewing Player Back Clearly)
+                camera.position.set(0, PLAYER_HEIGHT_OFFSET + 1.2, 4.0);
+                camera.rotation.set(-0.2, 0, 0);
                 if (playerMesh) playerMesh.visible = true;
             }
         }
@@ -510,7 +431,7 @@
             mineRaycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
             const intersects = mineRaycaster.intersectObjects(breakableObjects, true);
 
-            if (intersects.length > 0 && intersects[0].distance <= 9.0) {
+            if (intersects.length > 0 && intersects[0].distance <= 12.0) {
                 const hitObj = intersects[0].object;
 
                 if (hitObj.userData && (hitObj.userData.isTree || hitObj.userData.isRock)) {
@@ -583,16 +504,9 @@
 
         fogSlider.addEventListener('input', (e) => {
             const val = parseInt(e.target.value);
-            if (val === 1) {
-                fogValue.innerText = "Low";
-                scene.fog.density = 0.004;
-            } else if (val === 2) {
-                fogValue.innerText = "Medium";
-                scene.fog.density = 0.008;
-            } else {
-                fogValue.innerText = "High (Max FPS)";
-                scene.fog.density = 0.015;
-            }
+            if (val === 1) { fogValue.innerText = "Low"; scene.fog.density = 0.003; }
+            else if (val === 2) { fogValue.innerText = "Medium"; scene.fog.density = 0.006; }
+            else { fogValue.innerText = "High (Max FPS)"; scene.fog.density = 0.012; }
         });
 
         volSlider.addEventListener('input', (e) => volValue.innerText = e.target.value + '%');
@@ -625,10 +539,7 @@
             }
 
             if (e.code === 'KeyP') {
-                if (isInventoryOpen) {
-                    isInventoryOpen = false;
-                    inventoryOverlay.style.display = 'none';
-                }
+                if (isInventoryOpen) { isInventoryOpen = false; inventoryOverlay.style.display = 'none'; }
                 isSettingsOpen = !isSettingsOpen;
                 if (isSettingsOpen) {
                     settingsOverlay.style.display = 'flex';
