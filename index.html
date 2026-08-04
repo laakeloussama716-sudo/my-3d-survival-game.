@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Survival Game Engine - Full Master Edition</title>
+    <title>3D Survival Game Engine - High Performance</title>
     <style>
         * {
             box-sizing: border-box;
@@ -11,7 +11,7 @@
         body {
             margin: 0;
             overflow: hidden;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: Arial, sans-serif;
             user-select: none;
             -webkit-user-select: none;
             background-color: #000;
@@ -36,22 +36,18 @@
             top: 15px;
             left: 15px;
             color: #ffffff;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.9);
             z-index: 10;
             pointer-events: none;
         }
         #ui h2 {
             margin: 0 0 5px 0;
-            font-size: 22px;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-            color: #4deaea;
+            font-size: 20px;
+            color: #00ffcc;
         }
         #ui p {
             margin: 0;
             font-size: 13px;
-            opacity: 0.85;
-            font-weight: 500;
+            opacity: 0.9;
         }
 
         #fps-counter {
@@ -62,46 +58,37 @@
             font-family: monospace;
             font-size: 15px;
             font-weight: bold;
-            background: rgba(0, 0, 0, 0.65);
+            background: rgba(0, 0, 0, 0.7);
             padding: 6px 12px;
-            border-radius: 6px;
+            border-radius: 4px;
             display: none;
             z-index: 10;
-            border: 1px solid rgba(0, 255, 204, 0.4);
-            box-shadow: 0 0 10px rgba(0, 255, 204, 0.2);
+            border: 1px solid #00ffcc;
         }
 
         #hotbar {
             position: absolute;
-            bottom: 25px;
+            bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
             display: flex;
             gap: 10px;
-            background: rgba(15, 15, 15, 0.75);
-            padding: 10px;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(10, 10, 10, 0.8);
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid #444;
             z-index: 10;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
         }
         .hotbar-slot {
-            width: 58px;
-            height: 58px;
-            background: rgba(255, 255, 255, 0.08);
-            border: 2px solid #444;
-            border-radius: 8px;
-            transition: border-color 0.2s, background 0.2s;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            color: white;
-            font-size: 12px;
-            font-weight: bold;
+            width: 52px;
+            height: 52px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid #555;
+            border-radius: 6px;
         }
         .hotbar-slot.active {
             border-color: #00ffcc;
-            background: rgba(0, 255, 204, 0.15);
+            background: rgba(0, 255, 204, 0.1);
         }
 
         #inventory-overlay, #settings-overlay {
@@ -110,8 +97,7 @@
             left: 0;
             width: 100vw;
             height: 100vh;
-            background: rgba(0, 0, 0, 0.75);
-            backdrop-filter: blur(5px);
+            background: rgba(0, 0, 0, 0.8);
             display: none;
             justify-content: center;
             align-items: center;
@@ -119,97 +105,86 @@
         }
 
         .modal-box {
-            background: rgba(20, 24, 30, 0.95);
-            border: 2px solid #445566;
-            border-radius: 14px;
-            box-shadow: 0 0 25px rgba(0, 0, 0, 0.9);
+            background: #12161f;
+            border: 2px solid #334455;
+            border-radius: 10px;
             color: #ffffff;
         }
 
         #inventory-box {
-            width: 700px;
-            height: 440px;
+            width: 680px;
+            height: 420px;
             display: flex;
-            padding: 25px;
+            padding: 20px;
             gap: 20px;
         }
         #slots-container {
             display: grid;
             grid-template-columns: repeat(5, 1fr);
             grid-template-rows: repeat(3, 1fr);
-            gap: 12px;
+            gap: 10px;
             flex: 2;
         }
         .inv-slot {
-            background: rgba(255, 255, 255, 0.05);
+            background: rgba(255, 255, 255, 0.04);
             border: 2px solid #334455;
-            border-radius: 10px;
-            transition: background 0.2s, border-color 0.2s;
+            border-radius: 6px;
             cursor: pointer;
         }
         .inv-slot:hover {
-            background: rgba(255, 255, 255, 0.12);
             border-color: #00ffcc;
         }
         #crafting-space {
             flex: 1;
-            background: rgba(0, 0, 0, 0.3);
-            border: 2px dashed #445566;
-            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 2px dashed #334455;
+            border-radius: 8px;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             color: #8899aa;
-            font-size: 15px;
+            font-size: 14px;
             text-align: center;
-            padding: 15px;
+            padding: 10px;
         }
 
         #settings-box {
-            width: 420px;
-            padding: 30px;
+            width: 400px;
+            padding: 25px;
             display: flex;
             flex-direction: column;
-            gap: 22px;
+            gap: 20px;
         }
         #settings-box h2 {
             margin: 0 0 10px 0;
             text-align: center;
             border-bottom: 1px solid #334455;
-            padding-bottom: 12px;
+            padding-bottom: 10px;
             color: #00ffcc;
-            letter-spacing: 1px;
         }
         .setting-row {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 6px;
         }
         .setting-row label {
             font-size: 14px;
             display: flex;
             justify-content: space-between;
-            color: #ccddee;
+            color: #dddddd;
         }
         .setting-row input[type="range"] {
             width: 100%;
             cursor: pointer;
-            accent-color: #00ffcc;
         }
         .setting-checkbox {
             display: flex;
             align-items: center;
             justify-content: space-between;
             cursor: pointer;
-            color: #ccddee;
+            color: #dddddd;
             font-size: 14px;
-        }
-        .setting-checkbox input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            cursor: pointer;
-            accent-color: #00ffcc;
         }
 
         #instructions {
@@ -219,7 +194,7 @@
             width: 100vw;
             height: 100vh;
             color: white;
-            background: rgba(10, 12, 16, 0.88);
+            background: rgba(10, 10, 10, 0.9);
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -230,16 +205,15 @@
             padding: 20px;
         }
         #instructions h1 {
-            font-size: 42px;
+            font-size: 38px;
             margin-bottom: 10px;
             color: #00ffcc;
-            text-shadow: 0 0 15px rgba(0, 255, 204, 0.4);
         }
         #instructions p {
-            font-size: 16px;
-            color: #aab2bd;
-            max-width: 600px;
-            line-height: 1.6;
+            font-size: 15px;
+            color: #cccccc;
+            max-width: 580px;
+            line-height: 1.5;
         }
     </style>
 
@@ -257,11 +231,11 @@
     </div>
 
     <div id="hotbar">
-        <div class="hotbar-slot active">1</div>
-        <div class="hotbar-slot">2</div>
-        <div class="hotbar-slot">3</div>
-        <div class="hotbar-slot">4</div>
-        <div class="hotbar-slot">5</div>
+        <div class="hotbar-slot active"></div>
+        <div class="hotbar-slot"></div>
+        <div class="hotbar-slot"></div>
+        <div class="hotbar-slot"></div>
+        <div class="hotbar-slot"></div>
     </div>
 
     <div id="inventory-overlay">
@@ -284,7 +258,7 @@
             </div>
 
             <div class="setting-row">
-                <label>View Distance / Fog Density: <span id="fog-value">Medium</span></label>
+                <label>Fog View Distance: <span id="fog-value">Medium</span></label>
                 <input type="range" id="fog-slider" min="1" max="3" value="2">
             </div>
 
@@ -302,48 +276,36 @@
 
     <div id="instructions">
         <h1 id="loading-title">LOADING WORLD...</h1>
-        <p id="loading-sub">Preparing terrain and loading survival environment assets...</p>
+        <p id="loading-sub">Preparing map terrain and placing natural resources...</p>
     </div>
 
     <script>
-        // --- 1. SCENE SETUP & ENGINE INITIALIZATION ---
+        // --- 1. SCENE SETUP & PERFORMANCE CONFIGURATION ---
         const scene = new THREE.Scene();
-        const skyColor = new THREE.Color(0x87ceeb);
-        scene.background = skyColor;
-        
-        // Dynamic fog for FPS performance optimization and realistic view distance limits
-        const fogNear = 10;
-        const fogFar = 120;
-        scene.fog = new THREE.FogExp2(0x87ceeb, 0.006);
+        scene.background = new THREE.Color(0x7ec0ee);
+        scene.fog = new THREE.FogExp2(0x7ec0ee, 0.007);
 
-        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 800);
         
         const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.BasicShadowMap;
         document.body.appendChild(renderer.domElement);
 
-        // Lighting Architecture
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
+        // Optimized Simple Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
         scene.add(ambientLight);
 
-        const sun = new THREE.DirectionalLight(0xfffaed, 1.1);
-        sun.position.set(50, 100, 40);
+        const sun = new THREE.DirectionalLight(0xfff5ea, 0.9);
+        sun.position.set(40, 80, 30);
         sun.castShadow = true;
-        sun.shadow.mapSize.width = 1024;
-        sun.shadow.mapSize.height = 1024;
-        sun.shadow.camera.near = 0.5;
-        sun.shadow.camera.far = 250;
-        const shadowDistance = 60;
-        sun.shadow.camera.left = -shadowDistance;
-        sun.shadow.camera.right = shadowDistance;
-        sun.shadow.camera.top = shadowDistance;
-        sun.shadow.camera.bottom = -shadowDistance;
+        sun.shadow.mapSize.width = 512;
+        sun.shadow.mapSize.height = 512;
         scene.add(sun);
 
-        // --- 2. GLOBAL STATE & ASSET MANAGERS ---
+        // --- 2. GLOBAL ASSETS MANAGEMENT ---
         const loader = new THREE.GLTFLoader();
         const terrainMeshes = [];
         const breakableObjects = [];
@@ -354,7 +316,7 @@
 
         const loadingSub = document.getElementById('loading-sub');
 
-        // --- 3. TERRAIN & ENVIRONMENT LOADING ---
+        // --- 3. TERRAIN LOADING ---
         loader.load('tabletop_terrain.glb',
             (gltf) => {
                 const terrain = gltf.scene;
@@ -363,13 +325,11 @@
                 terrain.traverse((child) => {
                     if (child.isMesh) {
                         const name = child.name.toLowerCase();
-                        // Hide pre-baked terrain static objects to replace with interactable props
                         if (name.includes('tree') || name.includes('rock') || name.includes('foliage') ||
                             name.includes('stone') || name.includes('wood') || name.includes('plant') || name.includes('bush')) {
                             child.visible = false;
                         } else {
                             child.receiveShadow = true;
-                            child.castShadow = true;
                             terrainMeshes.push(child);
                         }
                     }
@@ -379,9 +339,8 @@
                 isTerrainLoaded = true;
 
                 document.getElementById('loading-title').innerText = "CLICK TO PLAY";
-                loadingSub.innerText = "WASD = Move | Space = Jump | Left Click = Mine Resources | F3 = Toggle View";
+                loadingSub.innerText = "WASD = Move | Space = Jump | Left Click = Mine Resources | F3 = Toggle Camera";
 
-                // Background loading for props
                 loadBackgroundProps();
             },
             (xhr) => {
@@ -392,28 +351,26 @@
             },
             (error) => {
                 console.error("Terrain Load Error:", error);
-                loadingSub.innerText = "Error loading terrain file! Ensure tabletop_terrain.glb exists.";
+                loadingSub.innerText = "Error loading tabletop_terrain.glb file!";
             }
         );
 
         function loadBackgroundProps() {
-            // Load custom Tree Model
             loader.load('pine_tree.glb', (gltfTree) => {
                 loadedTreeModel = gltfTree.scene;
                 spawnTrees();
-            }, undefined, (err) => console.warn("Tree GLB failed to load, check pine_tree.glb file.", err));
+            }, undefined, (err) => console.warn("pine_tree.glb failed to load", err));
 
-            // Load custom Rock Model
             loader.load('crystal_stone_rock.glb', (gltfRock) => {
                 loadedRockModel = gltfRock.scene;
                 spawnRocks();
-            }, undefined, (err) => console.warn("Rock GLB failed to load, check crystal_stone_rock.glb file.", err));
+            }, undefined, (err) => console.warn("crystal_stone_rock.glb failed to load", err));
         }
 
         const terrainRaycaster = new THREE.Raycaster();
         function getGroundHeight(x, z) {
             if (terrainMeshes.length === 0) return null;
-            terrainRaycaster.set(new THREE.Vector3(x, 300, z), new THREE.Vector3(0, -1, 0));
+            terrainRaycaster.set(new THREE.Vector3(x, 500, z), new THREE.Vector3(0, -1, 0));
             const hits = terrainRaycaster.intersectObjects(terrainMeshes, true);
             if (hits.length > 0) return hits[0].point.y;
             return null;
@@ -424,26 +381,24 @@
             let treeCount = 0;
             let attempts = 0;
 
-            while (treeCount < 18 && attempts < 150) {
+            while (treeCount < 20 && attempts < 200) {
                 attempts++;
-                const x = (Math.random() - 0.5) * 110;
-                const z = (Math.random() - 0.5) * 110;
-                if (Math.abs(x) < 10 && Math.abs(z) < 10) continue;
+                const x = (Math.random() - 0.5) * 120;
+                const z = (Math.random() - 0.5) * 120;
+                if (Math.abs(x) < 12 && Math.abs(z) < 12) continue;
 
                 const y = getGroundHeight(x, z);
                 if (y !== null) {
                     const tree = loadedTreeModel.clone(true);
                     tree.position.set(x, y, z);
                     
-                    // Fixed & Optimized scale for pine_tree.glb
-                    const scale = 0.8 + Math.random() * 0.4;
+                    const scale = 0.6 + Math.random() * 0.3;
                     tree.scale.set(scale, scale, scale);
                     tree.rotation.y = Math.random() * Math.PI * 2;
 
                     tree.traverse((child) => {
                         if (child.isMesh) {
                             child.castShadow = true;
-                            child.receiveShadow = true;
                             child.userData = { isTree: true, hp: 4, parentGroup: tree };
                             breakableObjects.push(child);
                         }
@@ -460,26 +415,24 @@
             let rockCount = 0;
             let attempts = 0;
 
-            while (rockCount < 12 && attempts < 150) {
+            while (rockCount < 14 && attempts < 200) {
                 attempts++;
-                const x = (Math.random() - 0.5) * 100;
-                const z = (Math.random() - 0.5) * 100;
-                if (Math.abs(x) < 10 && Math.abs(z) < 10) continue;
+                const x = (Math.random() - 0.5) * 110;
+                const z = (Math.random() - 0.5) * 110;
+                if (Math.abs(x) < 12 && Math.abs(z) < 12) continue;
 
                 const y = getGroundHeight(x, z);
                 if (y !== null) {
                     const rock = loadedRockModel.clone(true);
-                    rock.position.set(x, y + 0.05, z);
+                    rock.position.set(x, y + 0.2, z);
                     
-                    // Fixed & Optimized scale for crystal_stone_rock.glb
-                    const scale = 0.5 + Math.random() * 0.3;
+                    const scale = 0.4 + Math.random() * 0.3;
                     rock.scale.set(scale, scale, scale);
                     rock.rotation.y = Math.random() * Math.PI * 2;
 
                     rock.traverse((child) => {
                         if (child.isMesh) {
                             child.castShadow = true;
-                            child.receiveShadow = true;
                             child.userData = { isRock: true, hp: 6, parentGroup: rock };
                             breakableObjects.push(child);
                         }
@@ -491,25 +444,23 @@
             }
         }
 
-        // --- 4. PLAYER ARCHITECTURE & PHYSICS SYSTEM ---
+        // --- 4. PLAYER & CAMERA SYSTEM ---
         const playerGroup = new THREE.Group();
-        playerGroup.position.set(0, 30, 0);
+        playerGroup.position.set(0, 15, 0); // Elevated initial spawn height
         scene.add(playerGroup);
 
         let playerMesh = null;
         let mixer = null;
         let animationsMap = new Map();
-        const PLAYER_HEIGHT_OFFSET = 0.9;
+        const PLAYER_HEIGHT_OFFSET = 1.6; // Raised offset to keep player above ground
 
         loader.load('player.glb', (gltf) => {
             playerMesh = gltf.scene;
             playerMesh.position.y = 0;
-            playerMesh.scale.set(1.0, 1.0, 1.0);
             
             playerMesh.traverse((child) => {
                 if (child.isMesh) {
                     child.castShadow = true;
-                    child.receiveShadow = true;
                 }
             });
 
@@ -523,12 +474,11 @@
             }
             updatePerspective();
         }, undefined, () => {
-            // Fallback capsule geometry if GLB fails to load
             playerMesh = new THREE.Mesh(
-                new THREE.CapsuleGeometry(0.5, 1.0, 4, 8),
-                new THREE.MeshStandardMaterial({ color: 0x2266cc, roughness: 0.5 })
+                new THREE.CapsuleGeometry(0.5, 1.2, 4, 8),
+                new THREE.MeshStandardMaterial({ color: 0x2266cc })
             );
-            playerMesh.position.y = PLAYER_HEIGHT_OFFSET;
+            playerMesh.position.y = PLAYER_HEIGHT_OFFSET / 2;
             playerGroup.add(playerMesh);
             updatePerspective();
         });
@@ -540,24 +490,20 @@
 
         function updatePerspective() {
             if (!isThirdPerson) {
-                // First-Person Mode
-                camera.position.set(0, PLAYER_HEIGHT_OFFSET + 0.7, 0.1);
+                camera.position.set(0, PLAYER_HEIGHT_OFFSET, 0.1);
                 camera.rotation.set(0, 0, 0);
                 if (playerMesh) playerMesh.visible = false;
             } else {
-                // Third-Person Mode with Over-The-Shoulder View
-                camera.position.set(0.5, PLAYER_HEIGHT_OFFSET + 1.2, 3.2);
-                camera.rotation.set(-0.1, 0, 0);
+                camera.position.set(0, PLAYER_HEIGHT_OFFSET + 0.8, 3.5);
+                camera.rotation.set(-0.15, 0, 0);
                 if (playerMesh) playerMesh.visible = true;
             }
         }
         updatePerspective();
 
-        // Raycasting & Collision Mechanics
         const downRaycaster = new THREE.Raycaster();
         const mineRaycaster = new THREE.Raycaster();
 
-        // Mining Mechanism
         document.addEventListener('mousedown', (e) => {
             if (!isLocked || isInventoryOpen || isSettingsOpen || e.button !== 0 || !isTerrainLoaded) return;
 
@@ -569,13 +515,6 @@
 
                 if (hitObj.userData && (hitObj.userData.isTree || hitObj.userData.isRock)) {
                     hitObj.userData.hp -= 1;
-
-                    // Visual feedback effect on hit
-                    const origScale = hitObj.userData.parentGroup.scale.clone();
-                    hitObj.userData.parentGroup.scale.multiplyScalar(0.95);
-                    setTimeout(() => {
-                        if (hitObj.userData.parentGroup) hitObj.userData.parentGroup.scale.copy(origScale);
-                    }, 80);
 
                     if (hitObj.userData.hp <= 0) {
                         const targetGroup = hitObj.userData.parentGroup;
@@ -589,7 +528,7 @@
             }
         });
 
-        // --- 5. CONTROLS, UI & WINDOW EVENT HANDLERS ---
+        // --- 5. UI & INPUT CONTROLS ---
         let isLocked = false;
         let isInventoryOpen = false;
         let isSettingsOpen = false;
@@ -615,13 +554,12 @@
 
             yaw -= e.movementX * 0.0022;
             pitch -= e.movementY * 0.0018;
-            pitch = Math.max(-1.3, Math.min(1.3, pitch));
+            pitch = Math.max(-1.2, Math.min(1.2, pitch));
 
             playerGroup.rotation.y = yaw;
             cameraRig.rotation.x = pitch;
         });
 
-        // Populate Inventory Slots
         const slotsContainer = document.getElementById('slots-container');
         for (let i = 0; i < 15; i++) {
             const slot = document.createElement('div');
@@ -629,7 +567,6 @@
             slotsContainer.appendChild(slot);
         }
 
-        // Settings Controls Handler
         const gfxSlider = document.getElementById('gfx-slider');
         const gfxValue = document.getElementById('gfx-value');
         const fogSlider = document.getElementById('fog-slider');
@@ -647,21 +584,20 @@
         fogSlider.addEventListener('input', (e) => {
             const val = parseInt(e.target.value);
             if (val === 1) {
-                fogValue.innerText = "Low (Far)";
-                scene.fog.density = 0.003;
+                fogValue.innerText = "Low";
+                scene.fog.density = 0.004;
             } else if (val === 2) {
                 fogValue.innerText = "Medium";
-                scene.fog.density = 0.006;
+                scene.fog.density = 0.008;
             } else {
-                fogValue.innerText = "High (FPS Boost)";
-                scene.fog.density = 0.012;
+                fogValue.innerText = "High (Max FPS)";
+                scene.fog.density = 0.015;
             }
         });
 
         volSlider.addEventListener('input', (e) => volValue.innerText = e.target.value + '%');
         fpsToggle.addEventListener('change', (e) => fpsCounter.style.display = e.target.checked ? 'block' : 'none');
 
-        // Input Keyboard Mapping
         const keys = {};
         let velocityY = 0;
         let isGrounded = false;
@@ -717,7 +653,7 @@
 
         document.addEventListener('keyup', (e) => keys[e.code] = false);
 
-        // --- 6. GAME LOOP & MOVEMENT PHYSICS ---
+        // --- 6. ANIMATION & PHYSICS LOOP ---
         let clock = new THREE.Clock();
         let frameCount = 0;
         let lastTime = performance.now();
@@ -725,7 +661,6 @@
         function animate() {
             requestAnimationFrame(animate);
 
-            // FPS Counter Update Logic
             frameCount++;
             if (performance.now() - lastTime >= 1000) {
                 fpsCounter.innerText = `FPS: ${frameCount}`;
@@ -733,7 +668,7 @@
                 lastTime = performance.now();
             }
 
-            const delta = Math.min(clock.getDelta(), 0.1); // Clamp delta to avoid physics clipping
+            const delta = Math.min(clock.getDelta(), 0.1);
             if (mixer) mixer.update(delta);
 
             if (isLocked && !isInventoryOpen && !isSettingsOpen && isTerrainLoaded) {
@@ -751,9 +686,8 @@
                     playerGroup.position.addScaledVector(moveVector, moveSpeed);
                 }
 
-                // Gravity & Terrain Ground Collision Detection
                 downRaycaster.set(
-                    new THREE.Vector3(playerGroup.position.x, playerGroup.position.y + 2.0, playerGroup.position.z),
+                    new THREE.Vector3(playerGroup.position.x, playerGroup.position.y + 3.0, playerGroup.position.z),
                     new THREE.Vector3(0, -1, 0)
                 );
                 
@@ -761,17 +695,15 @@
 
                 if (groundHits.length > 0) {
                     const groundY = groundHits[0].point.y;
-                    velocityY += -28.0 * delta; // Gravity force
+                    velocityY += -28.0 * delta;
                     playerGroup.position.y += velocityY * delta;
 
-                    // Prevent clipping under mountains / terrain floor
-                    if (playerGroup.position.y <= groundY + 0.02) {
-                        playerGroup.position.y = groundY + 0.02;
+                    if (playerGroup.position.y <= groundY + 0.05) {
+                        playerGroup.position.y = groundY + 0.05;
                         velocityY = 0;
                         isGrounded = true;
                     }
                 } else {
-                    // Fallback gravity if raycaster misses
                     velocityY += -28.0 * delta;
                     playerGroup.position.y += velocityY * delta;
                 }
@@ -782,7 +714,6 @@
 
         animate();
 
-        // Responsive Viewport Resizing
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
