@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Survival Game - Optimized Terrain</title>
+    <title>3D Survival Game - Procedural Engine</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -210,122 +210,100 @@
     </div>
 
     <div id="instructions">
-        <h1 id="loading-title">LOADING WORLD...</h1>
-        <p id="loading-sub">Loading empty_terrain.glb...</p>
+        <h1 id="loading-title">GENERATING WORLD...</h1>
+        <p id="loading-sub">Building High-Performance Procedural Terrain...</p>
     </div>
 
     <script>
-        // --- 1. OPTIMIZED RENDERER & SCENE ---
+        // --- 1. OPTIMIZED ENGINE SETUP ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x7ec0ee);
 
         const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
         
-        const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.0)); // ????? ??? Ratio ????? ???? ???? ???
-        renderer.shadowMap.enabled = false;
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
         document.body.appendChild(renderer.domElement);
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 1.1);
         scene.add(ambientLight);
 
-        const sun = new THREE.DirectionalLight(0xffffff, 0.8);
-        sun.position.set(50, 200, 50);
+        const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+        sun.position.set(100, 250, 100);
         scene.add(sun);
 
-        // --- 2. TERRAIN SYSTEM ---
+        // --- 2. PROCEDURAL TERRAIN ENGINE (?? ??????? ??????) ---
+        function getNoiseHeight(x, z) {
+            // ???????? ????????? ?????? ?????? ????? ?????? ????
+            const h1 = Math.sin(x * 0.03) * Math.cos(z * 0.03) * 6.0;
+            const h2 = Math.sin(x * 0.08 + 1.5) * Math.sin(z * 0.08) * 2.5;
+            const h3 = Math.cos(x * 0.01) * Math.sin(z * 0.01) * 12.0;
+            return h1 + h2 + h3;
+        }
+
+        const WORLD_SIZE = 400;
+        const TERRAIN_SEGMENTS = 120;
+        const terrainGeo = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE, TERRAIN_SEGMENTS, TERRAIN_SEGMENTS);
+        terrainGeo.rotateX(-Math.PI / 2);
+
+        const posAttr = terrainGeo.attributes.position;
+        for (let i = 0; i < posAttr.count; i++) {
+            const x = posAttr.getX(i);
+            const z = posAttr.getZ(i);
+            posAttr.setY(i, getNoiseHeight(x, z));
+        }
+        terrainGeo.computeVertexNormals();
+
+        const terrainMat = new THREE.MeshStandardMaterial({
+            color: 0x448833,
+            roughness: 0.9,
+            metalness: 0.1,
+            flatShading: true
+        });
+
+        const terrainMesh = new THREE.Mesh(terrainGeo, terrainMat);
+        scene.add(terrainMesh);
+
+        // --- 3. RESOURCE ASSETS & AUTO-SPAWN ---
         const loader = new THREE.GLTFLoader();
-        const terrainMeshes = [];
         const breakableObjects = [];
 
-        let isTerrainLoaded = false;
         let loadedTreeModel = null;
         let loadedRockModel = null;
 
+        const loadingTitle = document.getElementById('loading-title');
         const loadingSub = document.getElementById('loading-sub');
 
-        // ????? ?????? ??????? ???????? ?????? ????? ???? ??????
-        loader.load('empty_terrain.glb',
-            (gltf) => {
-                const terrain = gltf.scene;
+        loader.load('pine_tree.glb', (gltfTree) => {
+            loadedTreeModel = gltfTree.scene;
+            checkAssetsReady();
+        });
 
-                // 1. ??????? ?????? ?????? ??????? ????????
-                const box = new THREE.Box3().setFromObject(terrain);
-                const center = box.getCenter(new THREE.Vector3());
-                const size = box.getSize(new THREE.Vector3());
+        loader.load('crystal_stone_rock.glb', (gltfRock) => {
+            loadedRockModel = gltfRock.scene;
+            checkAssetsReady();
+        });
 
-                terrain.position.x += (terrain.position.x - center.x);
-                terrain.position.z += (terrain.position.z - center.z);
-                terrain.position.y -= box.min.y; // ?????? ????? ?? ????? ?????? ???????
-
-                // ????? ??????? ??? ???? ????? ???? ???? ????
-                if (size.x < 100) {
-                    const scaleFactor = 100 / size.x;
-                    terrain.scale.set(scaleFactor, scaleFactor, scaleFactor);
-                }
-
-                terrain.traverse((child) => {
-                    if (child.isMesh) {
-                        child.material.side = THREE.FrontSide; // ??? ?????? ?????? ??????
-                        terrainMeshes.push(child);
-                    }
-                });
-
-                scene.add(terrain);
-                isTerrainLoaded = true;
-
-                // ????? ???? ?????? ???? ??? ??????? ??????
-                const spawnY = getGroundHeight(0, 0);
-                playerGroup.position.set(0, spawnY + 2.0, 0);
-
-                document.getElementById('loading-title').innerText = "CLICK TO PLAY";
+        function checkAssetsReady() {
+            if (loadedTreeModel && loadedRockModel) {
+                spawnWorldResources();
+                loadingTitle.innerText = "CLICK TO PLAY";
                 loadingSub.innerText = "WASD = Move | Space = Jump | Left Click = Mine Resources | F3 = Toggle Camera";
-
-                loadBackgroundProps();
-            },
-            (xhr) => {
-                if (xhr.lengthComputable) {
-                    const percent = Math.round((xhr.loaded / xhr.total) * 100);
-                    loadingSub.innerText = `Loading empty_terrain.glb: ${percent}%`;
-                }
-            },
-            (error) => {
-                console.error("Terrain Load Error:", error);
-                loadingSub.innerText = "Error loading map file!";
             }
-        );
-
-        function loadBackgroundProps() {
-            loader.load('pine_tree.glb', (gltfTree) => {
-                loadedTreeModel = gltfTree.scene;
-                spawnInitialTestResources();
-            });
-
-            loader.load('crystal_stone_rock.glb', (gltfRock) => {
-                loadedRockModel = gltfRock.scene;
-                spawnInitialTestResources();
-            });
         }
 
-        const terrainRaycaster = new THREE.Raycaster();
-        function getGroundHeight(x, z) {
-            if (terrainMeshes.length === 0) return 0;
-            terrainRaycaster.set(new THREE.Vector3(x, 1000, z), new THREE.Vector3(0, -1, 0));
-            const hits = terrainRaycaster.intersectObjects(terrainMeshes, true);
-            if (hits.length > 0) return hits[0].point.y;
-            return 0;
-        }
+        function spawnWorldResources() {
+            // ????? ??????? ??? ???????
+            for (let i = 0; i < 25; i++) {
+                const rx = (Math.random() - 0.5) * 320;
+                const rz = (Math.random() - 0.5) * 320;
+                const ry = getNoiseHeight(rx, rz);
 
-        function spawnInitialTestResources() {
-            if (!loadedTreeModel || !loadedRockModel || breakableObjects.length > 0) return;
-
-            const treePositions = [{ x: 10, z: 10 }, { x: -12, z: 15 }, { x: 18, z: -12 }];
-            treePositions.forEach(pos => {
-                const y = getGroundHeight(pos.x, pos.z);
                 const tree = loadedTreeModel.clone(true);
-                tree.position.set(pos.x, y, pos.z);
-                tree.scale.set(3.5, 3.5, 3.5);
+                tree.position.set(rx, ry, rz);
+                const s = 3.0 + Math.random() * 1.5;
+                tree.scale.set(s, s, s);
 
                 tree.traverse((child) => {
                     if (child.isMesh) {
@@ -334,14 +312,18 @@
                     }
                 });
                 scene.add(tree);
-            });
+            }
 
-            const rockPositions = [{ x: 8, z: -10 }, { x: -15, z: -12 }, { x: -10, z: 18 }];
-            rockPositions.forEach(pos => {
-                const y = getGroundHeight(pos.x, pos.z);
+            // ????? ??????
+            for (let i = 0; i < 20; i++) {
+                const rx = (Math.random() - 0.5) * 320;
+                const rz = (Math.random() - 0.5) * 320;
+                const ry = getNoiseHeight(rx, rz);
+
                 const rock = loadedRockModel.clone(true);
-                rock.position.set(pos.x, y, pos.z); 
-                rock.scale.set(2.2, 2.2, 2.2);
+                rock.position.set(rx, ry, rz);
+                const s = 2.0 + Math.random() * 1.0;
+                rock.scale.set(s, s, s);
 
                 rock.traverse((child) => {
                     if (child.isMesh) {
@@ -350,12 +332,13 @@
                     }
                 });
                 scene.add(rock);
-            });
+            }
         }
 
-        // --- 3. PLAYER & CAMERA CONTROLS ---
+        // --- 4. PLAYER CONTROLS & PHYSICS ---
         const playerGroup = new THREE.Group();
-        playerGroup.position.set(0, 5, 0); 
+        const startY = getNoiseHeight(0, 0) + 2.0;
+        playerGroup.position.set(0, startY, 0); 
         scene.add(playerGroup);
 
         let playerMesh = null;
@@ -402,11 +385,9 @@
         }
         updatePerspective();
 
-        const downRaycaster = new THREE.Raycaster();
         const mineRaycaster = new THREE.Raycaster();
-
         document.addEventListener('mousedown', (e) => {
-            if (!isLocked || isInventoryOpen || isSettingsOpen || e.button !== 0 || !isTerrainLoaded) return;
+            if (!isLocked || isInventoryOpen || isSettingsOpen || e.button !== 0) return;
 
             mineRaycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
             const intersects = mineRaycaster.intersectObjects(breakableObjects, true);
@@ -429,7 +410,7 @@
             }
         });
 
-        // --- 4. UI & INTERACTION ---
+        // --- 5. UI & INPUT CONTROLS ---
         let isLocked = false;
         let isInventoryOpen = false;
         let isSettingsOpen = false;
@@ -439,7 +420,7 @@
         const settingsOverlay = document.getElementById('settings-overlay');
 
         instructions.addEventListener('click', () => {
-            if (!isInventoryOpen && !isSettingsOpen && isTerrainLoaded) {
+            if (!isInventoryOpen && !isSettingsOpen) {
                 document.body.requestPointerLock();
             }
         });
@@ -535,7 +516,7 @@
 
         document.addEventListener('keyup', (e) => keys[e.code] = false);
 
-        // --- 5. GAME LOOP ---
+        // --- 6. GAME LOOP ---
         let clock = new THREE.Clock();
         let frameCount = 0;
         let lastTime = performance.now();
@@ -553,7 +534,7 @@
             const delta = Math.min(clock.getDelta(), 0.1);
             if (mixer) mixer.update(delta);
 
-            if (isLocked && !isInventoryOpen && !isSettingsOpen && isTerrainLoaded) {
+            if (isLocked && !isInventoryOpen && !isSettingsOpen) {
                 const moveSpeed = 10.0 * delta;
                 const moveVector = new THREE.Vector3();
 
@@ -568,26 +549,16 @@
                     playerGroup.position.addScaledVector(moveVector, moveSpeed);
                 }
 
-                downRaycaster.set(
-                    new THREE.Vector3(playerGroup.position.x, playerGroup.position.y + 5.0, playerGroup.position.z),
-                    new THREE.Vector3(0, -1, 0)
-                );
+                // ???? ???????? ????????? ?????? ??????? ?????? ??????
+                const currentGroundY = getNoiseHeight(playerGroup.position.x, playerGroup.position.z);
                 
-                const groundHits = downRaycaster.intersectObjects(terrainMeshes, true);
+                velocityY += -28.0 * delta;
+                playerGroup.position.y += velocityY * delta;
 
-                if (groundHits.length > 0) {
-                    const groundY = groundHits[0].point.y;
-                    velocityY += -28.0 * delta;
-                    playerGroup.position.y += velocityY * delta;
-
-                    if (playerGroup.position.y <= groundY + 0.05) {
-                        playerGroup.position.y = groundY + 0.05;
-                        velocityY = 0;
-                        isGrounded = true;
-                    }
-                } else {
-                    velocityY += -28.0 * delta;
-                    playerGroup.position.y += velocityY * delta;
+                if (playerGroup.position.y <= currentGroundY + 0.05) {
+                    playerGroup.position.y = currentGroundY + 0.05;
+                    velocityY = 0;
+                    isGrounded = true;
                 }
             }
 
