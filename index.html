@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Survival Game Engine - Direct Online Loader</title>
+    <title>3D Survival Game Engine - New Terrain</title>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -224,7 +224,7 @@
 
     <div id="instructions">
         <h1 id="loading-title">LOADING WORLD...</h1>
-        <p id="loading-sub">Downloading map terrain directly...</p>
+        <p id="loading-sub">Loading empty terrain map...</p>
     </div>
 
     <script>
@@ -259,22 +259,15 @@
 
         const loadingSub = document.getElementById('loading-sub');
 
-        // --- 3. TERRAIN LOADING FROM DIRECT ONLINE STORAGE ---
-        // ????? ????? ???????? ?? ??????? ??????? ???????? ??????
-        loader.load('tabletop_terrain.glb',
+        // --- 3. LOADING NEW MAP: empty_terrain.glb ---
+        loader.load('empty_terrain.glb',
             (gltf) => {
                 const terrain = gltf.scene;
                 terrain.position.set(0, 0, 0);
 
                 terrain.traverse((child) => {
                     if (child.isMesh) {
-                        const name = child.name.toLowerCase();
-                        if (name.includes('tree') || name.includes('rock') || name.includes('foliage') ||
-                            name.includes('stone') || name.includes('wood') || name.includes('plant') || name.includes('bush')) {
-                            child.visible = false;
-                        } else {
-                            terrainMeshes.push(child);
-                        }
+                        terrainMeshes.push(child);
                     }
                 });
 
@@ -289,12 +282,12 @@
             (xhr) => {
                 if (xhr.lengthComputable) {
                     const percent = Math.round((xhr.loaded / xhr.total) * 100);
-                    loadingSub.innerText = `Loading Terrain Map: ${percent}%`;
+                    loadingSub.innerText = `Loading empty_terrain.glb: ${percent}%`;
                 }
             },
             (error) => {
                 console.error("Terrain Load Error:", error);
-                loadingSub.innerText = "Error loading terrain file!";
+                loadingSub.innerText = "Error loading empty_terrain.glb file!";
             }
         );
 
@@ -323,7 +316,7 @@
         function spawnInitialTestResources() {
             if (!loadedTreeModel || !loadedRockModel || breakableObjects.length > 0) return;
 
-            // 3 Large Test Trees nearby
+            // 3 Large Test Trees
             const treePositions = [
                 { x: 8, z: 8 },
                 { x: -10, z: 12 },
@@ -335,7 +328,6 @@
                 const tree = loadedTreeModel.clone(true);
                 tree.position.set(pos.x, y, pos.z);
                 
-                // Big scale for Trees
                 const scale = 3.8;
                 tree.scale.set(scale, scale, scale);
 
@@ -348,7 +340,7 @@
                 scene.add(tree);
             });
 
-            // 3 Large Test Rocks nearby (Raised Y-offset +0.8)
+            // 3 Large Test Rocks
             const rockPositions = [
                 { x: 6, z: -8 },
                 { x: -12, z: -10 },
@@ -358,9 +350,8 @@
             rockPositions.forEach(pos => {
                 const y = getGroundHeight(pos.x, pos.z);
                 const rock = loadedRockModel.clone(true);
-                rock.position.set(pos.x, y + 0.8, pos.z); // Lifted up to avoid ground sinking
+                rock.position.set(pos.x, y + 0.8, pos.z); 
                 
-                // Big scale for Rocks
                 const scale = 2.2;
                 rock.scale.set(scale, scale, scale);
 
@@ -414,12 +405,10 @@
 
         function updatePerspective() {
             if (!isThirdPerson) {
-                // First Person Perspective
                 camera.position.set(0, PLAYER_HEIGHT_OFFSET, 0.1);
                 camera.rotation.set(0, 0, 0);
                 if (playerMesh) playerMesh.visible = false;
             } else {
-                // Third Person Perspective (Looking at Player's Back)
                 camera.position.set(0, PLAYER_HEIGHT_OFFSET + 1.2, 4.0);
                 camera.rotation.set(-0.2, 0, 0);
                 if (playerMesh) playerMesh.visible = true;
