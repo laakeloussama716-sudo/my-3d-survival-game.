@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Survival Game - Optimized</title>
+    <title>3D Survival Game - Fast Load</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; user-select: none; }
         
@@ -119,8 +119,8 @@
     </div>
 
     <div id="instructions">
-        <h1 id="loading-title">OPTIMIZING & LOADING...</h1>
-        <p id="loading-sub">Preparing assets and terrain...</p>
+        <h1 id="loading-title">LOADING WORLD...</h1>
+        <p id="loading-sub">Preparing terrain...</p>
     </div>
 
     <script>
@@ -145,32 +145,23 @@
         const loader = new THREE.GLTFLoader();
         const terrainMeshes = [];
         const breakableObjects = [];
-        let isWorldReady = false;
-
+        
+        let isTerrainLoaded = false;
         let loadedTreeModel = null;
         let loadedRockModel = null;
 
-        function loadModelsAndStart() {
-            // ????? ???? ????????
-            loader.load('pine_tree.glb', (gltfTree) => {
-                loadedTreeModel = gltfTree.scene;
-                
-                loader.load('crystal_stone_rock.glb', (gltfRock) => {
-                    loadedRockModel = gltfRock.scene;
-                    loadTerrain();
-                }, undefined, () => loadTerrain());
-            }, undefined, () => loadTerrain());
-        }
+        const loadingSub = document.getElementById('loading-sub');
 
-        function loadTerrain() {
-            loader.load('tabletop_terrain.glb', (gltf) => {
+        // 1. ????? ????? ?????? ????? ??? ????? ?? ????? ?????
+        loader.load('tabletop_terrain.glb', 
+            (gltf) => {
                 const terrain = gltf.scene;
                 terrain.position.set(0, 0, 0);
 
                 terrain.traverse((child) => {
                     if (child.isMesh) {
                         const name = child.name.toLowerCase();
-                        // ????? ????? ????? ??? ?????/???? ????? ?? ??????? ???????
+                        // ????? ?????? ??????? ???????
                         if (name.includes('tree') || name.includes('rock') || name.includes('foliage') || 
                             name.includes('stone') || name.includes('wood') || name.includes('plant') || name.includes('bush')) {
                             child.visible = false;
@@ -183,33 +174,64 @@
                 });
 
                 scene.add(terrain);
-                spawnEnvironmentResources();
-            });
+                isTerrainLoaded = true;
+
+                document.getElementById('loading-title').innerText = "CLICK TO PLAY";
+                loadingSub.innerText = "WASD = Move | Left Click = Mine (Assets Loading in Background)";
+                
+                // 2. ??????? ????? ??????? ??????? ???? ????? ?? ???????
+                loadBackgroundProps();
+            },
+            (xhr) => {
+                if (xhr.lengthComputable) {
+                    const percent = Math.round((xhr.loaded / xhr.total) * 100);
+                    loadingSub.innerText = `Loading Map Terrain: ${percent}%`;
+                }
+            },
+            (error) => {
+                console.error("Terrain Load Error:", error);
+                loadingSub.innerText = "Error loading terrain file!";
+            }
+        );
+
+        function loadBackgroundProps() {
+            // ????? ??? ?????? ???? ?????
+            loader.load('pine_tree.glb', (gltfTree) => {
+                loadedTreeModel = gltfTree.scene;
+                spawnTrees();
+            }, undefined, (err) => console.warn("Tree failed to load", err));
+
+            // ????? ??? ?????? ???? ?????
+            loader.load('crystal_stone_rock.glb', (gltfRock) => {
+                loadedRockModel = gltfRock.scene;
+                spawnRocks();
+            }, undefined, (err) => console.warn("Rock failed to load", err));
         }
 
         const terrainRaycaster = new THREE.Raycaster();
         function getGroundHeight(x, z) {
+            if (terrainMeshes.length === 0) return null;
             terrainRaycaster.set(new THREE.Vector3(x, 200, z), new THREE.Vector3(0, -1, 0));
             const hits = terrainRaycaster.intersectObjects(terrainMeshes, true);
             if (hits.length > 0) return hits[0].point.y;
             return null;
         }
 
-        function spawnEnvironmentResources() {
-            // ??? ???? ????? ??????? (12 ???? ? 8 ????)
+        function spawnTrees() {
+            if (!loadedTreeModel) return;
             let treeCount = 0;
-            while (treeCount < 12 && loadedTreeModel) {
+            let attempts = 0;
+
+            while (treeCount < 12 && attempts < 100) {
+                attempts++;
                 const x = (Math.random() - 0.5) * 80;
                 const z = (Math.random() - 0.5) * 80;
-                
                 if (Math.abs(x) < 8 && Math.abs(z) < 8) continue;
 
                 const y = getGroundHeight(x, z);
                 if (y !== null) {
                     const tree = loadedTreeModel.clone(true);
-                    // ????? ?????? ?????? ?????? ?????? ??? ????? ??????
                     tree.position.set(x, y, z);
-                    
                     const scale = 0.15 + Math.random() * 0.1; 
                     tree.scale.set(scale, scale, scale);
                     tree.rotation.y = Math.random() * Math.PI * 2;
@@ -226,19 +248,23 @@
                     treeCount++;
                 }
             }
+        }
 
+        function spawnRocks() {
+            if (!loadedRockModel) return;
             let rockCount = 0;
-            while (rockCount < 8 && loadedRockModel) {
+            let attempts = 0;
+
+            while (rockCount < 8 && attempts < 100) {
+                attempts++;
                 const x = (Math.random() - 0.5) * 70;
                 const z = (Math.random() - 0.5) * 70;
-
                 if (Math.abs(x) < 8 && Math.abs(z) < 8) continue;
 
                 const y = getGroundHeight(x, z);
                 if (y !== null) {
                     const rock = loadedRockModel.clone(true);
                     rock.position.set(x, y + 0.1, z);
-
                     const scale = 0.2 + Math.random() * 0.15;
                     rock.scale.set(scale, scale, scale);
                     rock.rotation.y = Math.random() * Math.PI * 2;
@@ -255,13 +281,7 @@
                     rockCount++;
                 }
             }
-
-            isWorldReady = true;
-            document.getElementById('loading-title').innerText = "CLICK TO PLAY";
-            document.getElementById('loading-sub').innerText = "WASD = Move | Left Click = Mine Resources";
         }
-
-        loadModelsAndStart();
 
         // --- PLAYER SETUP ---
         const playerGroup = new THREE.Group();
@@ -317,7 +337,7 @@
         const mineRaycaster = new THREE.Raycaster();
 
         document.addEventListener('mousedown', (e) => {
-            if (!isLocked || isInventoryOpen || isSettingsOpen || e.button !== 0 || !isWorldReady) return;
+            if (!isLocked || isInventoryOpen || isSettingsOpen || e.button !== 0 || !isTerrainLoaded) return;
 
             mineRaycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
             const intersects = mineRaycaster.intersectObjects(breakableObjects, true);
@@ -330,12 +350,10 @@
 
                     if (hitObj.userData.hp <= 0) {
                         const targetGroup = hitObj.userData.parentGroup;
-                        
                         targetGroup.traverse((child) => {
                             const index = breakableObjects.indexOf(child);
                             if (index > -1) breakableObjects.splice(index, 1);
                         });
-
                         scene.remove(targetGroup);
                     }
                 }
@@ -351,7 +369,7 @@
         const settingsOverlay = document.getElementById('settings-overlay');
 
         instructions.addEventListener('click', () => {
-            if(!isInventoryOpen && !isSettingsOpen && isWorldReady) document.body.requestPointerLock();
+            if(!isInventoryOpen && !isSettingsOpen && isTerrainLoaded) document.body.requestPointerLock();
         });
 
         document.addEventListener('pointerlockchange', () => {
@@ -465,7 +483,7 @@
             const delta = clock.getDelta();
             if (mixer) mixer.update(delta);
 
-            if (isLocked && !isInventoryOpen && !isSettingsOpen && isWorldReady) {
+            if (isLocked && !isInventoryOpen && !isSettingsOpen && isTerrainLoaded) {
                 const moveSpeed = 9 * delta;
                 const moveVector = new THREE.Vector3();
 
@@ -503,7 +521,7 @@
 
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateRotationMatrix ? camera.updateRotationMatrix() : camera.updateProjectionMatrix();
+            camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
     </script>
